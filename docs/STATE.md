@@ -15,9 +15,13 @@ The recompiled game boots to playable gameplay on Windows:
 - Tutorial level loads and renders: `06-gameplay-start.png`.
 - Player movement with the main stick: `07-gameplay-moved.png`.
 - Save state reload into gameplay: `09-loadstate-gameplay.png`.
-- Player release staged and tested from `dist/`: launcher, direct ISO/RVZ
-  import, Clang module, no game data. Zip SHA-256
-  `2E358D4B5453E89D6C8E9CC70D52E4DF4EF333E3CEBFDC85CF31CD7DEAA8253E`.
+- Player release v0.0.2 staged and tested from `dist/`: launcher, direct
+  ISO/RVZ import, generic runner, Clang module, no game data. Zip SHA-256
+  `A0880D10D0C3D08C42B4E503044F695311C522BA7F1C096AA2499B856DF13C38`.
+- 16:9 widescreen and the Hor+ widescreen hack are fixed in v0.0.2. The v0.0.1
+  runner was a stale binary that ignored `aspect`/`widescreen_hack`; the new
+  runner is built from the current ModernGekko source. See
+  [`notes/04-widescreen.md`](notes/04-widescreen.md).
 - Frame-time investigation: GPU is idle (~2-3 ms) and the game is CPU-bound.
   One captured window held 59.84 FPS; a later window in the same session hit
   1.54 s and 550 ms CPU stalls. That session began with a missing shader cache
@@ -165,9 +169,9 @@ sound settings. This is independent of the static module: a JIT/interpreter run
   not been verified.
 - **Performance**: the Clang module is at the 60 FPS cap in the tested scene at
   3x internal resolution, but one captured window had CPU-bound 1.5 s stalls.
-  The v0.0.1 release asset predates the `Cache\Shaders` and affinity fixes in
-  `tools/gile_launcher.cs`; rebuild or use the fixed launcher for a validation
-  run.
+  The v0.0.1 release asset predates the `Cache\Shaders`, affinity and generic
+  runner fixes; v0.0.2 contains the fixed launcher and runner. A clean
+  active-gameplay capture is still the validation gap.
 - **Missing host function**: `inlineOverlayGetNumContinues` is called by the
   zgui overlay and is not implemented. It is separate from the frame-time issue
   but should be stubbed.

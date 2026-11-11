@@ -1,6 +1,6 @@
 param(
-    [string]$Version = "0.0.1",
-    [string]$Runner = "H:\Projects\SB-RFD\build\moderngekko\moderngekko-run.exe",
+    [string]$Version = "0.0.2",
+    [string]$Runner = "H:\Projects\Agressive Inline Static Recompile\build\gile.exe",
     [string]$Module = "H:\Projects\Agressive Inline Static Recompile\build\gGILE51_recomp_clang.dll",
     [string]$Rvz = "H:\Projects\Agressive Inline Static Recompile\build\pyinstaller\dist\rvz_extract.exe",
     [string]$Sys = "H:\Projects\SB-RFD\build\moderngekko\Sys",

@@ -419,7 +419,7 @@ internal static class Program
         StringBuilder arguments = new StringBuilder();
         arguments.Append("--game \"").Append(gamePath).Append('"');
         arguments.Append(" --module \"").Append(module).Append('"');
-        arguments.Append(" --audio cubeb --user-dir \"").Append(o.UserDir).Append('"');
+        arguments.Append(" --core static --audio cubeb --user-dir \"").Append(o.UserDir).Append('"');
         foreach (string pass in o.Pass)
         {
             arguments.Append(' ');

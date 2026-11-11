@@ -24,8 +24,11 @@ The game boots and reaches playable gameplay:
 - No crash or unimplemented-stub abort has been observed through the first
   level load.
 - A standalone player release is staged in
-  `dist/AggressiveInline-Recomp-v0.0.1-Windows-x64/` with a WinForms launcher,
+  `dist/AggressiveInline-Recomp-v0.0.2-Windows-x64/` with a WinForms launcher,
   direct ISO/RVZ import, the Clang module and no game data.
+- 16:9 widescreen and the Hor+ widescreen hack work in v0.0.2. The v0.0.1
+  runner was a stale binary that ignored the aspect settings; the new runner is
+  built from the current ModernGekko source.
 
 Open issues are tracked in [`docs/STATE.md`](docs/STATE.md). The main one is
 audio: the game's sound engine runs (DSP ucode uploads are visible), but no
@@ -88,8 +91,8 @@ powershell -ExecutionPolicy Bypass -File tools\make_release_gile.ps1 -Version 0.
 `tools\make_release_gile.ps1` builds:
 
 ```
-dist/AggressiveInline-Recomp-v0.0.1-Windows-x64/
-dist/AggressiveInline-Recomp-v0.0.1-Windows-x64.zip
+dist/AggressiveInline-Recomp-v0.0.2-Windows-x64/
+dist/AggressiveInline-Recomp-v0.0.2-Windows-x64.zip
 ```
 
 The stage contains `gile-launcher.exe`, `gile.exe`, the Clang module,
@@ -99,9 +102,11 @@ launcher accepts an ISO, an RVZ or an extracted folder, verifies `GILE51` and
 the DOL SHA-256, extracts to `%LOCALAPPDATA%\AggressiveInlineRecomp\game`, and
 starts the game with the bundled module.
 
-The final zip size and SHA-256 are recorded in
-[`docs/notes/02-release.md`](docs/notes/02-release.md), together with the
-packaging test results.
+The v0.0.2 zip size and SHA-256, the widescreen root cause and the packaging
+test results are recorded in
+[`docs/notes/04-widescreen.md`](docs/notes/04-widescreen.md). The earlier
+v0.0.1 packaging notes remain in
+[`docs/notes/02-release.md`](docs/notes/02-release.md).
 
 ## Automated bring-up
 
