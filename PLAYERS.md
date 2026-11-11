@@ -101,6 +101,19 @@ The game uses a folder-based memory card:
 The Save & Load menu is reachable. A full write/read test with a real `.gci`
 has not been completed yet; back up the folder before relying on it.
 
+## Performance logs
+
+The launcher writes a one-line-per-second FPS and memory record to:
+
+```
+%LOCALAPPDATA%\AggressiveInlineRecomp\logs\perf-YYYYMMDD-HHmmss.csv
+```
+
+It also creates the shader cache folder and pins the game to physical CPU
+cores. The first launch after a fresh install may compile shaders; later
+launches should be smoother. If you see frame drops, keep the latest
+`perf-*.csv` and send it with a note about what was on screen.
+
 ## Known issues
 
 - **Audio is silent in this build.** The game loads its sound banks and boots

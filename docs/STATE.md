@@ -18,6 +18,11 @@ The recompiled game boots to playable gameplay on Windows:
 - Player release staged and tested from `dist/`: launcher, direct ISO/RVZ
   import, Clang module, no game data. Zip SHA-256
   `2E358D4B5453E89D6C8E9CC70D52E4DF4EF333E3CEBFDC85CF31CD7DEAA8253E`.
+- Frame-time investigation: GPU is idle (~2-3 ms) and the game is CPU-bound.
+  A cold-cache window hit 1.54 s and 550 ms CPU stalls; the shader cache
+  directory was missing. The launcher now creates it, enables cache affinity
+  and pins to physical cores on 16-thread CPUs. See
+  [`notes/03-performance.md`](notes/03-performance.md).
 
 No crash, hang, or unimplemented-stub abort was observed through these scenes.
 With the Clang `-O3` module the window title reports **59.9 FPS** in gameplay at
@@ -140,6 +145,12 @@ sound settings. This is independent of the static module: a JIT/interpreter run
    folder, verifies `GILE51`/DOL hash, extracts to
    `%LOCALAPPDATA%\AggressiveInlineRecomp`, and starts the bundled module.
    See [`notes/02-release.md`](notes/02-release.md).
+6. **Frame-time validation**: capture a clean active-gameplay window with the
+   fixed launcher and warm shader cache. If 100 ms+ CPU stalls remain, build a
+   PGO module from a gameplay profile. See
+   [`notes/03-performance.md`](notes/03-performance.md).
+7. **zgui host function**: implement or stub `inlineOverlayGetNumContinues`
+   (`Continues`), which logs "Host function not Found" in the UI overlay.
 
 ## Known risks
 
@@ -151,8 +162,13 @@ sound settings. This is independent of the static module: a JIT/interpreter run
 - **Memory card**: the save/load menu is reachable; actual .gci write/read has
   not been verified.
 - **Performance**: the Clang module is at the 60 FPS cap in the tested scene at
-  3x internal resolution. Later scenes and particle-heavy areas may still dip;
-  PGO with a gameplay profile is the next tool if they do.
+  3x internal resolution, but a cold shader cache produced CPU-bound 1.5 s
+  stalls. The v0.0.1 release asset predates the `Cache\Shaders` and affinity
+  fixes in `tools/gile_launcher.cs`; rebuild or use the fixed launcher for a
+  validation run.
+- **Missing host function**: `inlineOverlayGetNumContinues` is called by the
+  zgui overlay and is not implemented. It is separate from the frame-time issue
+  but should be stubbed.
 
 ## Commands
 
@@ -178,4 +194,10 @@ powershell -ExecutionPolicy Bypass -File tools\make_release_gile.ps1 -Version 0.
 
 # Headless automation screenshots
 powershell -ExecutionPolicy Bypass -File tools\auto_probe.ps1 -Seconds 50 -Shots 10,25,45
+
+# Frame-time capture (start PresentMon before the game, stop manually)
+powershell -ExecutionPolicy Bypass -File tools\capture_session.ps1 -Seconds 600 -ProcessName gile
+
+# Dev-build FPS probe with save-state load and scripted movement
+powershell -ExecutionPolicy Bypass -File tools\perf_probe.ps1 -Seconds 30
 ```

@@ -432,10 +432,13 @@ internal static class Program
         psi.CreateNoWindow = true;
         psi.RedirectStandardOutput = true;
         psi.RedirectStandardError = true;
+        // Keep the serial recompiled core and the DSP thread on the same L3.
+        psi.EnvironmentVariables["MODERNGEKKO_CACHE_AFFINITY"] = "1";
 
         string logDir = Path.Combine(o.UserDir, "logs");
         Directory.CreateDirectory(logDir);
         string logPath = Path.Combine(logDir, "run.log");
+        string perfPath = Path.Combine(logDir, "perf-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".csv");
         object gate = new object();
 
         using (StreamWriter log = new StreamWriter(logPath, false, Encoding.UTF8))
@@ -460,6 +463,67 @@ internal static class Program
                 process.BeginErrorReadLine();
                 try { process.PriorityClass = ProcessPriorityClass.High; }
                 catch { }
+                // On 8-core/16-thread CPUs, keep the emulation and DSP threads off
+                // SMT siblings. The RPBB project measured ~20% from this alone.
+                if (Environment.ProcessorCount >= 16)
+                {
+                    try { process.ProcessorAffinity = (IntPtr)0xFF; }
+                    catch { }
+                }
+
+                // Keep a one-line-per-second performance record next to run.log.
+                // The window title carries the live FPS because show_fps_in_title
+                // is enabled by default.
+                Thread perfThread = new Thread(delegate()
+                {
+                    try
+                    {
+                        using (StreamWriter perf = new StreamWriter(perfPath, false, Encoding.UTF8))
+                        {
+                            perf.AutoFlush = true;
+                            perf.WriteLine("timestamp,fps,working_set_mb,cpu_seconds");
+                            while (!process.HasExited)
+                            {
+                                double fps = 0;
+                                try
+                                {
+                                    string title = process.MainWindowTitle;
+                                    int bar = title.LastIndexOf('|');
+                                    int end = title.IndexOf(" FPS", bar + 1);
+                                    if (bar >= 0 && end > bar)
+                                    {
+                                        double parsed;
+                                        if (double.TryParse(title.Substring(bar + 1, end - bar - 1).Trim(),
+                                                NumberStyles.Float, CultureInfo.InvariantCulture, out parsed))
+                                            fps = parsed;
+                                    }
+                                }
+                                catch { }
+                                long workingSet = 0;
+                                double cpuSeconds = 0;
+                                try
+                                {
+                                    process.Refresh();
+                                    workingSet = process.WorkingSet64;
+                                    cpuSeconds = process.TotalProcessorTime.TotalSeconds;
+                                }
+                                catch { }
+                                try
+                                {
+                                    perf.WriteLine(string.Format(CultureInfo.InvariantCulture,
+                                        "{0:o},{1:F1},{2:F1},{3:F2}", DateTime.UtcNow,
+                                        fps, workingSet / 1048576.0, cpuSeconds));
+                                }
+                                catch { }
+                                Thread.Sleep(1000);
+                            }
+                        }
+                    }
+                    catch { }
+                });
+                perfThread.IsBackground = true;
+                perfThread.Start();
+
                 ApplyWindowMode(process, o.WindowMode);
                 try
                 {
@@ -531,6 +595,10 @@ internal static class Program
         Directory.CreateDirectory(configDir);
         Directory.CreateDirectory(Path.Combine(userDir, "GC"));
         Directory.CreateDirectory(Path.Combine(userDir, "logs"));
+        // Dolphin creates the shader cache with a single-level create, which fails
+        // unless Cache already exists. Without this the pipeline cache is rebuilt
+        // every launch and first-use shader compilation causes long frame stalls.
+        Directory.CreateDirectory(Path.Combine(userDir, "Cache", "Shaders"));
 
         string dolphin = Path.Combine(configDir, "Dolphin.ini");
         if (!File.Exists(dolphin))
