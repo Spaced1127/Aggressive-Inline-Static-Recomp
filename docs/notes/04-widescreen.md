@@ -68,8 +68,8 @@ The 16:9 capture has a wider horizontal field of view (Hor+), not a stretched
 
 ```
 dist/AggressiveInline-Recomp-v0.0.2-Windows-x64.zip
-Size:    26,067,805 bytes
-SHA-256: A0880D10D0C3D08C42B4E503044F695311C522BA7F1C096AA2499B856DF13C38
+Size:    26,067,840 bytes
+SHA-256: 3ED12524FC4636D0DEE745257AF16D6FEA740ED9F92CB57BDC965E25813F1A4E
 ```
 
 The release contains no game data. The player-facing **Aspect ratio** and

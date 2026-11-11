@@ -19,6 +19,8 @@ The game boots and reaches playable gameplay:
   player character, HUD, and tutorial overlays.
 - Controller input works; the player moves with the main stick.
 - Save states save and reload into gameplay.
+- Audio output works through DSP LLE + Cubeb (user-confirmed; the earlier
+  silence was a muted output).
 - 59.9 FPS in windowed gameplay at 3x native (1920x1344) internal resolution
   with the Clang `-O3` module (`speed~0.999`).
 - No crash or unimplemented-stub abort has been observed through the first
@@ -30,10 +32,11 @@ The game boots and reaches playable gameplay:
   runner was a stale binary that ignored the aspect settings; the new runner is
   built from the current ModernGekko source.
 
-Open issues are tracked in [`docs/STATE.md`](docs/STATE.md). The main one is
-audio: the game's sound engine runs (DSP ucode uploads are visible), but no
-samples reach the mixer. The same runtime produces audio for the RPBB recomp,
-so this is specific to this title's audio path, not the runtime installation.
+Open issues are tracked in [`docs/STATE.md`](docs/STATE.md). Audio works; if
+you hear silence, check the Windows volume mixer for `gile.exe`, the launcher's
+Audio page, and the in-game Sound menu (SFX / Music / Speech). The remaining
+known item is the missing zgui host function `inlineOverlayGetNumContinues`;
+performance validation is ongoing.
 
 ## Verified dump
 

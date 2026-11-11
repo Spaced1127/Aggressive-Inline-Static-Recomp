@@ -15,9 +15,11 @@ The recompiled game boots to playable gameplay on Windows:
 - Tutorial level loads and renders: `06-gameplay-start.png`.
 - Player movement with the main stick: `07-gameplay-moved.png`.
 - Save state reload into gameplay: `09-loadstate-gameplay.png`.
+- Audio output confirmed working through DSP LLE + Cubeb; the earlier silence
+  was a muted output, not a DSP fault.
 - Player release v0.0.2 staged and tested from `dist/`: launcher, direct
   ISO/RVZ import, generic runner, Clang module, no game data. Zip SHA-256
-  `A0880D10D0C3D08C42B4E503044F695311C522BA7F1C096AA2499B856DF13C38`.
+  `3ED12524FC4636D0DEE745257AF16D6FEA740ED9F92CB57BDC965E25813F1A4E`.
 - 16:9 widescreen and the Hor+ widescreen hack are fixed in v0.0.2. The v0.0.1
   runner was a stale binary that ignored `aspect`/`widescreen_hack`; the new
   runner is built from the current ModernGekko source. See
@@ -104,43 +106,27 @@ dolrecomp.exe --cpu gekko --gamecube work\disc\main.dol build\recomp
   screenshots/input/save-state/memory commands.
 - Headless probing uses `tools\start_auto.bat`; windowed play uses `run.bat`.
 
-## Audio investigation (open)
+## Audio (working)
 
-The game's sound engine runs but produces no audible samples:
+Audio output works through DSP LLE + Cubeb. The user confirmed it; the earlier
+"silence" was a muted output.
 
-- DSP LLE log shows the boot AX ucode `0x07f88145`, then after the sound engine
-  initializes (e.g. state load) a second ucode `0x3a864594`.
-- `DumpAudio=True` writes `*_dspdump.wav` (2,092 bytes = one silent frame) and
-  zero-length `*_dspdump1.wav` / `*_dtkdump.wav` while running.
-- DSP HLE and DSP LLE both produce silence for GILE51.
-- The AI DMA is configured at boot: `20 blocks from 0x001b9740`.
-- A guest-memory read of the AI DMA buffer (`0x801b9740`, 640 bytes) is all zero
-  at the main menu and in gameplay, so the DSP is not writing PCM into the
-  buffer the AI is playing.
-- File monitor shows the game opening/reading the sound banks
-  (`assets/audio/sfxcom.zsd`, `sfxgame.zsd`, `music.zsd` 179 MB,
-  `speech00.zsd`), so the engine is trying to load audio.
-- Control: the same runtime, user dir and `--audio cubeb` produce a 771 KB
-  non-zero `GBQE78_*_dspdump.wav` for the RPBB recomp, so the runtime and audio
-  backend are working.
-- The Sound menu exposes SFX / Music / Speech volume bars. The slider fill
-  renders as a plain white rectangle, so the saved values cannot be read from
-  the screenshot; the volume controls did not change the bar visually when
-  driven with D-pad input.
-- Save state `work/saves/sound-menu.state` (24,428,124 bytes) boots straight to
-  the Sound menu for follow-up tests.
+The older investigation in [`notes/01-bringup.md`](notes/01-bringup.md) recorded
+zero DSP dumps and a zero AI DMA buffer. Those runs were made while the output
+was muted, so they are **not** evidence of a DSP bug; the AX ucode upload and
+AI DMA configuration seen there are normal. If a future run is silent, check:
 
-Next step: determine whether the AI/DSP task is being fed. Likely candidates are
-the custom `0x3a864594` ucode path, an AI DMA/interrupt issue, or the game's
-sound settings. This is independent of the static module: a JIT/interpreter run
-(`--allow-interpreter`, no module) is also silent.
+1. Windows volume mixer, per-app volume for `gile.exe`.
+2. The launcher's Audio page (mute checkbox / "No sound" backend).
+3. The in-game Sound menu (SFX / Music / Speech volumes).
+
+`work/saves/sound-menu.state` (24,428,124 bytes) boots straight to the Sound
+menu if those values need checking.
 
 ## Next actions
 
-1. **Audio**: instrument AI/DSP state and confirm whether the sound engine issues
-   AI DMA. Identify the `0x3a864594` ucode (find its upload site and compare with
-   Dolphin's known AX ucodes). Check the game's `EnableSound` global and the
-   Sound menu values in guest memory.
+1. **Audio**: working. No action; if a report says silent, check the Windows
+   per-app mixer, the launcher Audio page and the in-game Sound menu first.
 2. **Performance**: done for the first pass - Clang `-O3` + x86-64-v3 + ThinLTO
    holds 59.9 FPS at 3x native internal in gameplay. PGO is optional from here.
 3. **Coverage**: complete the tutorial, level transitions, pause, memory-card
@@ -160,11 +146,11 @@ sound settings. This is independent of the static module: a JIT/interpreter run
 
 ## Known risks
 
-- **Audio**: see above. The custom sound-driver ucode may need DSP LLE work.
+- **Audio**: working through DSP LLE + Cubeb. Silence is a mute/config issue,
+  not a port bug.
 - **Self-modifying code**: 100 flagged ranges; boot/gameplay currently OK, but a
   real text patch later could need an explicit DolRecomp patch.
-- **h4m/PSS video**: the intro movies render, but movie audio is part of the
-  same open audio issue.
+- **h4m/PSS video**: the intro movies render and use the working audio path.
 - **Memory card**: the save/load menu is reachable; actual .gci write/read has
   not been verified.
 - **Performance**: the Clang module is at the 60 FPS cap in the tested scene at

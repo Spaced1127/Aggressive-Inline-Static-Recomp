@@ -116,10 +116,9 @@ launches should be smoother. If you see frame drops, keep the latest
 
 ## Known issues
 
-- **Audio is silent in this build.** The game loads its sound banks and boots
-  the DSP ucode, but no PCM reaches the AI DMA buffer. The runtime produces
-  audio for the RPBB recomp, so this is specific to Aggressive Inline's audio
-  path. Video, input, menus, levels and save states are unaffected.
+- **If the game is silent**, check the Windows volume mixer for `gile.exe`,
+  the launcher's Audio page, and the in-game Sound menu (SFX / Music / Speech).
+  Audio output through DSP LLE + Cubeb is working.
 - **First launch extracts the disc.** This takes about a minute on an SSD for
   an RVZ, plus the decompression step.
 - The game is playable through the tutorial. A full story playthrough has not

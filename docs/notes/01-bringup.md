@@ -113,37 +113,32 @@ headless mode. With the Clang module, the windowed title reports **59.9 FPS**
 in gameplay at 3x native (1920x1344) internal resolution; a 20-second sample
 held `speed=0.999`. During the intro FMV the MSVC module showed 36.6 FPS.
 
-## 6. Audio control test
+## 6. Audio (corrected 2026-11-10)
 
-GILE51:
+Audio output works through DSP LLE + Cubeb; the user confirmed it. The earlier
+probe below was made while the output was muted and is **not** evidence of a DSP
+bug.
 
-- `DumpAudio=True` produces `GILE51_*_dspdump.wav` of 2,092 bytes (one silent
-  frame), with zero-length `dspdump1` / `dtkdump` while running.
-- Both DSP HLE and DSP LLE are silent.
-- JIT/interpreter (`--allow-interpreter`, no static module) is also silent, so
-  this is not caused by the recompiled module.
-- Ucode CRCs observed: `0x07F88145` (known AX ucode used by F-Zero GX, Ikaruga,
-  etc.) at boot; the IRAM CRC becomes `0x3A864594` after state load (the AX
-  ucode's data area is part of that hash).
+Historical probe (invalidated by the mute):
+
+- `DumpAudio=True` produced a 2,092-byte `GILE51_*_dspdump.wav` and zero-length
+  `dspdump1` / `dtkdump` while the output was muted.
+- Ucode CRCs observed: `0x07F88145` (the known AX ucode used by F-Zero GX,
+  Ikaruga, etc.) at boot; the IRAM CRC becomes `0x3A864594` after state load
+  (the AX ucode's data area is part of that hash).
 - AI DMA is configured at boot: `20 blocks from 0x001b9740`.
-- Guest reads of `0x801b9740` (the 640-byte AI DMA ring) are all zero at the
-  main menu and in gameplay. The DSP is not writing PCM into the AI buffer.
-- File monitor shows the sound banks being read: `sfxcom.zsd`, `sfxgame.zsd`,
+- File monitor showed the sound banks being read: `sfxcom.zsd`, `sfxgame.zsd`,
   `music.zsd` (179 MB), `speech00.zsd`.
-- The Sound menu sliders render as plain white rectangles and did not change
-  visibly under D-pad input; the saved volume cannot be read from the capture.
-- `work/saves/sound-menu.state` loads directly to the Sound menu for follow-up.
-
-Control:
-
-- The same runtime, user dir, and `--audio cubeb` produce a 771 KB
-  `GBQE78_*_dspdump.wav` for the RPBB recomp (Rocket Power: Beach Bandits).
-- Therefore the runtime and Cubeb/DSP installation are functional; the issue is
-  specific to GILE51's audio path.
+- The same runtime, user dir and `--audio cubeb` produce a 771 KB
+  `GBQE78_*_dspdump.wav` for the RPBB recomp (Rocket Power: Beach Bandits), so
+  the runtime and Cubeb/DSP installation are functional.
+- `work/saves/sound-menu.state` loads directly to the Sound menu for checking
+  the SFX / Music / Speech volumes.
 
 ## 7. Open work
 
-1. Audio: confirm AI DMA/sound-engine state and identify `0x3A864594`.
+1. Audio: working; check the Windows per-app mixer and in-game Sound menu if a
+   run is silent.
 2. Clang `-O3` module is built and holds 59.9 FPS; PGO only if later scenes dip.
 3. Full tutorial, level transitions, pause, memory-card save/load.
 4. Review the 100 SMC ranges.
