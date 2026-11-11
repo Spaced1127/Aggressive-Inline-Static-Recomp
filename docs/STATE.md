@@ -1,6 +1,6 @@
 # Project state
 
-Updated: 2026-11-09
+Updated: 2026-11-11
 
 ## Latest verified result
 
@@ -20,10 +20,19 @@ The recompiled game boots to playable gameplay on Windows:
 - Player release v0.0.2 staged and tested from `dist/`: launcher, direct
   ISO/RVZ import, generic runner, Clang module, no game data. Zip SHA-256
   `3ED12524FC4636D0DEE745257AF16D6FEA740ED9F92CB57BDC965E25813F1A4E`.
+- Player release v0.0.3 staged and tested from `dist/`: the same runner and
+  module with the expanded controller layouts. Zip size 26,077,924 bytes,
+  SHA-256
+  `7CD1C5D6CC80DE17BBE9B80E37695DFDD8E06CDF825DFDF775DB0A08AE012D04`.
+  No game data.
 - 16:9 widescreen and the Hor+ widescreen hack are fixed in v0.0.2. The v0.0.1
   runner was a stale binary that ignored `aspect`/`widescreen_hack`; the new
   runner is built from the current ModernGekko source. See
   [`notes/04-widescreen.md`](notes/04-widescreen.md).
+- Controller support expanded in v0.0.3: ready-made DualSense, DualShock 4/3,
+  Xbox Wireless/Series/One/360, Switch Pro, Steam Controller and 8BitDo
+  layouts, plus a launcher that reads the exact `SDL/<id>/<name>` from
+  `dolphin.log`. See [`notes/05-controllers.md`](notes/05-controllers.md).
 - Frame-time investigation: GPU is idle (~2-3 ms) and the game is CPU-bound.
   One captured window held 59.84 FPS; a later window in the same session hit
   1.54 s and 550 ms CPU stalls. That session began with a missing shader cache
@@ -133,10 +142,11 @@ menu if those values need checking.
    save/load, and at least one full level.
 4. **SMC review**: inspect the 100 `generated_smc.txt` ranges; only patch sites
    that actually write executable memory at runtime.
-5. **Packaging**: done for v0.0.1. The launcher accepts ISO, RVZ or an extracted
+5. **Packaging**: done for v0.0.3. The launcher accepts ISO, RVZ or an extracted
    folder, verifies `GILE51`/DOL hash, extracts to
    `%LOCALAPPDATA%\AggressiveInlineRecomp`, and starts the bundled module.
-   See [`notes/02-release.md`](notes/02-release.md).
+   The release ships the full `defaults/GCPadNew*.ini` preset set. See
+   [`notes/05-controllers.md`](notes/05-controllers.md).
 6. **Frame-time validation**: capture a clean active-gameplay window with the
    fixed launcher and warm shader cache. If 100 ms+ CPU stalls remain, build a
    PGO module from a gameplay profile. See
@@ -182,7 +192,7 @@ tools\build_msvc.bat
 tools\run_dev.bat
 
 # Build the player release (stage + zip)
-powershell -ExecutionPolicy Bypass -File tools\make_release_gile.ps1 -Version 0.0.1
+powershell -ExecutionPolicy Bypass -File tools\make_release_gile.ps1 -Version 0.0.3
 
 # Headless automation screenshots
 powershell -ExecutionPolicy Bypass -File tools\auto_probe.ps1 -Seconds 50 -Shots 10,25,45

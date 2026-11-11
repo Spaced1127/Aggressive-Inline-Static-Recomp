@@ -664,9 +664,139 @@ internal static class Program
         }
 
         string controller = Path.Combine(configDir, "GCPadNew.ini");
-        string defaultController = Path.Combine(appDir, "defaults", "GCPadNew.ini");
-        if (!File.Exists(controller) && File.Exists(defaultController))
-            File.Copy(defaultController, controller);
+        if (!File.Exists(controller))
+        {
+            string defaultController = Path.Combine(appDir, "defaults", "GCPadNew.ini");
+            // If a pad has already been used, start from the matching layout and
+            // write its exact SDL name instead of assuming a DualSense.
+            string detected = DetectControllerDevice(userDir);
+            string preset = ControllerPresetForDevice(detected);
+            string template = Path.Combine(appDir, "defaults",
+                                           "GCPadNew." + preset + ".ini");
+            try
+            {
+                if (!string.IsNullOrEmpty(detected) && File.Exists(template))
+                    WriteControllerProfile(template, controller, detected);
+                else if (File.Exists(defaultController))
+                    File.Copy(defaultController, controller);
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    private static List<string> DetectControllerDevices(string userDir)
+    {
+        List<string> found = new List<string>();
+        string log = Path.Combine(userDir, "logs", "dolphin.log");
+        if (!File.Exists(log))
+            return found;
+        try
+        {
+            using (FileStream stream = new FileStream(log, FileMode.Open,
+                       FileAccess.Read, FileShare.ReadWrite))
+            using (StreamReader reader = new StreamReader(stream))
+            {
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                {
+                    int at = line.IndexOf("Added device: SDL/",
+                                          StringComparison.OrdinalIgnoreCase);
+                    if (at < 0)
+                        continue;
+                    string name = line.Substring(at + "Added device: ".Length).Trim();
+                    if (name.IndexOf("Keyboard", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                        name.IndexOf("Mouse", StringComparison.OrdinalIgnoreCase) >= 0)
+                        continue;
+                    if (!found.Contains(name))
+                        found.Add(name);
+                }
+            }
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+        return found;
+    }
+
+    private static string DetectControllerDevice(string userDir)
+    {
+        List<string> devices = DetectControllerDevices(userDir);
+        return devices.Count > 0 ? devices[devices.Count - 1] : null;
+    }
+
+    private static string ControllerPresetDevice(string preset)
+    {
+        switch (preset)
+        {
+            case "dualsense": return "SDL/0/DualSense Wireless Controller";
+            case "xbox": return "SDL/0/Xbox Wireless Controller";
+            case "xbox-series": return "SDL/0/Xbox Series X Controller";
+            case "xbox-one": return "SDL/0/Xbox One Controller";
+            case "xbox360": return "SDL/0/Xbox 360 Controller";
+            case "dualshock4": return "SDL/0/PS4 Controller";
+            case "dualshock3": return "SDL/0/PS3 Controller";
+            case "switch-pro": return "SDL/0/Nintendo Switch Pro Controller";
+            case "steam": return "SDL/0/Steam Controller";
+            case "8bitdo": return "SDL/0/8BitDo Pro 2";
+            case "xbox-generic": return "SDL/0/Xbox Controller";
+            case "generic": return "SDL/0/Gamepad";
+            default: return null;
+        }
+    }
+
+    private static string ControllerPresetForDevice(string device)
+    {
+        if (string.IsNullOrEmpty(device))
+            return "dualsense";
+        string d = device.ToLowerInvariant();
+        if (d.Contains("xbox series"))
+            return "xbox-series";
+        if (d.Contains("xbox one"))
+            return "xbox-one";
+        if (d.Contains("xbox 360"))
+            return "xbox360";
+        if (d.Contains("xbox"))
+            return d.Contains("wireless") ? "xbox" : "xbox-generic";
+        if (d.Contains("dualsense") || d.Contains("ps5"))
+            return "dualsense";
+        if (d.Contains("dualshock 4") || d.Contains("ps4") ||
+            d.Contains("wireless controller"))
+            return "dualshock4";
+        if (d.Contains("dualshock 3") || d.Contains("ps3"))
+            return "dualshock3";
+        if (d.Contains("switch") || d.Contains("pro controller"))
+            return "switch-pro";
+        if (d.Contains("steam"))
+            return "steam";
+        if (d.Contains("8bitdo"))
+            return "8bitdo";
+        return "generic";
+    }
+
+    private static void WriteControllerProfile(string template, string target, string device)
+    {
+        List<string> lines = new List<string>(File.ReadAllLines(template));
+        bool replaced = false;
+        for (int i = 0; i < lines.Count; i++)
+        {
+            if (lines[i].TrimStart().StartsWith("Device", StringComparison.OrdinalIgnoreCase) &&
+                lines[i].Contains("="))
+            {
+                lines[i] = "Device = " + device;
+                replaced = true;
+            }
+        }
+        if (!replaced)
+        {
+            int section = lines.FindIndex(l => l.Trim() == "[GCPad1]");
+            if (section < 0)
+            {
+                lines.Insert(0, "[GCPad1]");
+                section = 0;
+            }
+            lines.Insert(section + 1, "Device = " + device);
+        }
+        File.WriteAllLines(target, lines);
     }
 
     private static void EnsureIniKey(string path, string section, string key, string value)
@@ -1024,6 +1154,9 @@ internal static class Program
         private Label _launchSummary;
         private Label _sideStatus;
         private Label _controllerStatus;
+        private Label _controllerApplyStatus;
+        private ComboBox _controllerPreset;
+        private ComboBox _controllerDevice;
         private PillLabel _badge;
         private AccentProgress _progress;
         private TransparentPanel[] _pages;
@@ -1694,8 +1827,8 @@ internal static class Program
                                      TextMain, 9F, FontStyle.Regular);
 
             MakeLabel(card,
-                      "DSP LLE is selected. Audio is still under investigation in this build: the game currently runs silently.",
-                      18, 236, 900, 22, TextDim, 8.5F, FontStyle.Regular);
+                      "DSP LLE is selected. If the game is silent, check the Windows per-app volume for gile.exe, this page, and the in-game Sound menu.",
+                      18, 236, 900, 44, TextDim, 8.5F, FontStyle.Regular);
             MakeLabel(card,
                       "Choosing Off mutes the game but keeps emulation running normally.",
                       18, 264, 900, 22, TextDim, 8.5F, FontStyle.Regular);
@@ -1705,28 +1838,170 @@ internal static class Program
         {
             CardPanel card = MakeCard(page, 0, 0, 950, 500, "CONTROLLER");
 
-            MakeLabel(card, "Controller profile", 18, 56, 420, 20,
+            MakeLabel(card, "Controller layout", 18, 56, 420, 20,
                       TextMain, 9F, FontStyle.Bold);
-            MakeLabel(card, Path.Combine(_userDir, "Config", "GCPadNew.ini"),
-                      18, 82, 900, 22, TextMain, 9F, FontStyle.Regular);
+            MakeLabel(card, "Choose a layout, confirm the SDL device name, then Apply.",
+                      18, 80, 900, 22, TextDim, 8.5F, FontStyle.Regular);
 
-            _controllerStatus = MakeLabel(card, "", 18, 112, 900, 22,
-                                           TextDim, 8.5F, FontStyle.Regular);
+            _controllerPreset = MakeCombo(card, 18, 106, 320);
+            _controllerPreset.Items.Add(new Choice("DualSense (PS5)", "dualsense"));
+            _controllerPreset.Items.Add(new Choice("Xbox Wireless", "xbox"));
+            _controllerPreset.Items.Add(new Choice("Xbox Series X/S", "xbox-series"));
+            _controllerPreset.Items.Add(new Choice("Xbox One", "xbox-one"));
+            _controllerPreset.Items.Add(new Choice("Xbox 360", "xbox360"));
+            _controllerPreset.Items.Add(new Choice("DualShock 4 (PS4)", "dualshock4"));
+            _controllerPreset.Items.Add(new Choice("DualShock 3 (PS3)", "dualshock3"));
+            _controllerPreset.Items.Add(new Choice("Switch Pro", "switch-pro"));
+            _controllerPreset.Items.Add(new Choice("Steam Controller", "steam"));
+            _controllerPreset.Items.Add(new Choice("8BitDo (Xbox-style)", "8bitdo"));
+            _controllerPreset.Items.Add(new Choice("Xbox (generic)", "xbox-generic"));
+            _controllerPreset.Items.Add(new Choice("Generic / other SDL pad", "generic"));
+            _controllerPreset.Items.Add(new Choice("Custom (edit file)", "custom"));
+            _controllerPreset.SelectedIndexChanged +=
+                delegate { OnControllerPresetChanged(); };
 
-            Button openProfile = MakeButton(card, "Open controller profile",
-                                            18, 150, 240, 34);
+            MakeLabel(card, "SDL device name", 18, 146, 420, 20,
+                      TextMain, 9F, FontStyle.Bold);
+            _controllerDevice = MakeDeviceCombo(card, 18, 170, 620);
+            Button detect = MakeButton(card, "Read from log", 650, 168, 180, 30);
+            detect.Click += delegate { DetectControllerFromLog(); };
+
+            Button apply = MakeButton(card, "Apply layout", 18, 214, 170, 34);
+            apply.Click += delegate { ApplyControllerPreset(); };
+            Button openProfile = MakeButton(card, "Open profile", 200, 214, 170, 34);
             openProfile.Click += delegate { OpenControllerProfile(); };
-            Button openConfig = MakeButton(card, "Open config folder",
-                                           274, 150, 240, 34);
+            Button openConfig = MakeButton(card, "Open config folder", 382, 214, 200, 34);
             openConfig.Click += delegate { OpenSettings(); };
 
-            MakeLabel(card,
-                      "A DualSense profile ships with this release. To use an Xbox, Switch or other pad, open the profile and adjust the SDL mapping, or replace it with a GCPadNew.ini from another ModernGekko build.",
-                      18, 212, 900, 60, TextDim, 8.5F, FontStyle.Regular);
+            _controllerStatus = MakeLabel(card, "", 18, 260, 900, 22,
+                                           TextDim, 8.5F, FontStyle.Regular);
+            _controllerApplyStatus = MakeLabel(card, "", 18, 286, 900, 22,
+                                                TextDim, 8.5F, FontStyle.Regular);
 
             MakeLabel(card,
-                      "The launcher never edits the game's files. Controller settings live in your user folder.",
-                      18, 290, 900, 22, TextDim, 8.5F, FontStyle.Regular);
+                      "ModernGekko matches the SDL device name exactly. Connect the pad, play once, then press 'Read from log' to fill the exact name. With several pads connected, pick the right one from the list.",
+                      18, 320, 900, 52, TextDim, 8.5F, FontStyle.Regular);
+            MakeLabel(card,
+                      "Layouts: DualSense, DualShock 4/3, Xbox Wireless/Series/One/360, Switch Pro, Steam Controller, 8BitDo and other SDL pads. Apply backs up the current profile before writing.",
+                      18, 376, 900, 52, TextDim, 8.5F, FontStyle.Regular);
+            MakeLabel(card,
+                      "GameCube A/B/X/Y = face buttons, Z = right shoulder (RB/R1), Start = Menu/Options/Plus, L/R = triggers (LT/RT), C-stick = right stick, D-pad = D-pad.",
+                      18, 432, 900, 44, TextDim, 8.5F, FontStyle.Regular);
+        }
+
+        private void LoadControllerSettings()
+        {
+            if (_controllerPreset == null || _controllerDevice == null)
+                return;
+            string path = Path.Combine(_userDir, "Config", "GCPadNew.ini");
+            string device = GetIniKey(path, "GCPad1", "Device", string.Empty);
+            if (string.IsNullOrEmpty(device))
+            {
+                PopulateControllerDevices(null);
+                SelectChoice(_controllerPreset, "dualsense");
+                return;
+            }
+            PopulateControllerDevices(device);
+            SelectChoice(_controllerPreset, ControllerPresetForDevice(device));
+            // Selecting the layout fills its common device name; put the real one back.
+            _controllerDevice.Text = device;
+        }
+
+        private void OnControllerPresetChanged()
+        {
+            if (_controllerPreset == null || _controllerDevice == null)
+                return;
+            string device = ControllerPresetDevice(Selected(_controllerPreset));
+            if (!string.IsNullOrEmpty(device))
+                _controllerDevice.Text = device;
+            if (_controllerApplyStatus != null)
+                _controllerApplyStatus.Text = "";
+        }
+
+        private void PopulateControllerDevices(string current)
+        {
+            if (_controllerDevice == null)
+                return;
+            _controllerDevice.Items.Clear();
+            foreach (string name in DetectControllerDevices(_userDir))
+            {
+                if (!_controllerDevice.Items.Contains(name))
+                    _controllerDevice.Items.Add(name);
+            }
+            if (!string.IsNullOrEmpty(current) && !_controllerDevice.Items.Contains(current))
+                _controllerDevice.Items.Add(current);
+        }
+
+        private void ApplyControllerPreset()
+        {
+            string preset = Selected(_controllerPreset);
+            if (preset == "custom")
+            {
+                OpenControllerProfile();
+                return;
+            }
+            string device = _controllerDevice.Text.Trim();
+            if (string.IsNullOrEmpty(device))
+                device = ControllerPresetDevice(preset);
+            if (!device.StartsWith("SDL/", StringComparison.OrdinalIgnoreCase))
+            {
+                MessageBox.Show(this, "The device name must start with SDL/ (for example SDL/0/Xbox Wireless Controller).",
+                    Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            string template = Path.Combine(_appDir, "defaults", "GCPadNew." + preset + ".ini");
+            if (!File.Exists(template))
+            {
+                MessageBox.Show(this, "The preset file is missing: " + template,
+                    Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            string target = Path.Combine(_userDir, "Config", "GCPadNew.ini");
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(target));
+                if (File.Exists(target))
+                {
+                    string backup = Path.Combine(_userDir, "Config",
+                        "GCPadNew.backup-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".ini");
+                    File.Copy(target, backup, true);
+                }
+                WriteControllerProfile(template, target, device);
+                _controllerDevice.Text = device;
+                _controllerApplyStatus.Text = "Applied " + SelectedLabel(_controllerPreset) +
+                    " for " + device + ". Restart the game if it is running.";
+                UpdateControllerStatus();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Could not write the controller profile: " + ex.Message,
+                    Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        private void DetectControllerFromLog()
+        {
+            List<string> devices = DetectControllerDevices(_userDir);
+            if (devices.Count == 0)
+            {
+                _controllerApplyStatus.Text = "No SDL controller found in the latest log yet. Play once, then try again.";
+                return;
+            }
+            string device = devices[devices.Count - 1];
+            PopulateControllerDevices(device);
+            SelectChoice(_controllerPreset, ControllerPresetForDevice(device));
+            // Selecting the layout fills its common device name; use the detected one.
+            _controllerDevice.Text = device;
+            _controllerApplyStatus.Text = devices.Count == 1
+                ? "Detected " + device + ". Press Apply layout to use it."
+                : "Detected " + devices.Count + " controllers; using " + device +
+                  ". Pick another from the list if needed.";
+        }
+
+        private static string SelectedLabel(ComboBox box)
+        {
+            Choice choice = box.SelectedItem as Choice;
+            return choice != null ? choice.Label : "";
         }
 
         private static Label MakeLabel(Control parent, string text, int x, int y,
@@ -1769,6 +2044,15 @@ internal static class Program
             combo.ForeColor = TextMain;
             combo.Font = new Font("Segoe UI", 9F);
             parent.Controls.Add(combo);
+            return combo;
+        }
+
+        private static ComboBox MakeDeviceCombo(Control parent, int x, int y, int width)
+        {
+            ComboBox combo = MakeCombo(parent, x, y, width);
+            combo.DropDownStyle = ComboBoxStyle.DropDown;
+            combo.AutoCompleteMode = AutoCompleteMode.SuggestAppend;
+            combo.AutoCompleteSource = AutoCompleteSource.ListItems;
             return combo;
         }
 
@@ -1867,6 +2151,7 @@ internal static class Program
 
             UpdateSummary();
             UpdateReadyState();
+            LoadControllerSettings();
             UpdateControllerStatus();
         }
 
@@ -2006,9 +2291,23 @@ internal static class Program
             if (_controllerStatus == null)
                 return;
             string profile = Path.Combine(_userDir, "Config", "GCPadNew.ini");
-            _controllerStatus.Text = File.Exists(profile)
-                ? "DualSense profile installed."
-                : "No controller profile yet. A DualSense profile is installed on first play.";
+            if (!File.Exists(profile))
+            {
+                _controllerStatus.Text =
+                    "No controller profile yet. One is created on first play.";
+                return;
+            }
+            string device = GetIniKey(profile, "GCPad1", "Device", string.Empty);
+            string text = string.IsNullOrEmpty(device)
+                ? "Controller profile installed."
+                : "Using: " + device;
+            string detected = DetectControllerDevice(_userDir);
+            if (!string.IsNullOrEmpty(detected) &&
+                !string.Equals(detected, device, StringComparison.OrdinalIgnoreCase))
+            {
+                text += "   Last detected: " + detected + " (press Read from log).";
+            }
+            _controllerStatus.Text = text;
         }
 
         private void BrowseIso()

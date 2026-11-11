@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.0.2",
+    [string]$Version = "0.0.3",
     [string]$Runner = "H:\Projects\Agressive Inline Static Recompile\build\gile.exe",
     [string]$Module = "H:\Projects\Agressive Inline Static Recompile\build\gGILE51_recomp_clang.dll",
     [string]$Rvz = "H:\Projects\Agressive Inline Static Recompile\build\pyinstaller\dist\rvz_extract.exe",
@@ -55,8 +55,8 @@ Copy-Item -LiteralPath (Join-Path $root "recomplauncher.json") -Destination $sta
 Copy-Item -LiteralPath (Join-Path $root "README.md") -Destination $stage -Force
 Copy-Item -LiteralPath (Join-Path $root "PLAYERS.md") -Destination $stage -Force
 Copy-Item -LiteralPath (Join-Path $root "run.bat") -Destination $stage -Force
-Copy-Item -LiteralPath (Join-Path $root "work\user\Config\GCPadNew.ini") `
-    -Destination (Join-Path $stage "defaults\GCPadNew.ini") -Force
+Copy-Item -Path (Join-Path $root "defaults\GCPadNew*.ini") `
+    -Destination (Join-Path $stage "defaults") -Force
 Set-Content -LiteralPath (Join-Path $stage "VERSION") -Value "v$Version" -Encoding ASCII
 
 $gameReadme = @"

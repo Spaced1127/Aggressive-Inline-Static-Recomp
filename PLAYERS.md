@@ -48,29 +48,62 @@ The launcher refuses a different revision.
 
 ## Controls
 
-The bundled profile is for a DualSense. The GameCube pad buttons map as
-follows:
+The launcher ships layouts for the major controller families:
 
-| GameCube | Action | DualSense |
-|---|---|---|
-| A | Jump / confirm | Cross |
-| B | Cancel / attack | Circle |
-| X | Action 1 | Square |
-| Y | Action 2 | Triangle |
-| Start | Pause | Options |
-| Left stick | Move | Left stick |
-| D-pad | Move | D-pad |
-| C stick | Camera | Right stick |
-| L / R | Triggers | L2 / R2 |
+- DualSense (PS5)
+- DualShock 4 (PS4) and DualShock 3 (PS3)
+- Xbox Wireless, Xbox Series X/S, Xbox One and Xbox 360
+- Switch Pro
+- Steam Controller
+- 8BitDo and other SDL pads (generic Xbox-style layout)
 
-For an Xbox or Switch Pro controller, edit:
+To use one:
+
+1. Connect the controller and start the game once so ModernGekko logs its SDL
+   name. You can also skip this if the preset's default name already matches.
+2. Open **CONTROLLER** in the launcher.
+3. Pick your layout.
+4. Press **Read from log** to fill the exact SDL device name. This is the
+   reliable step when you have more than one controller connected, or when the
+   controller reports a different name than the preset expects.
+5. Press **Apply layout**, then restart the game.
+
+Dolphin matches the device name exactly, including `SDL/0/` or `SDL/1/`. The
+launcher backs up the old `GCPadNew.ini` before writing a new one.
+
+The default profile is DualSense. If no profile exists yet and the log shows a
+controller, the launcher creates the matching layout automatically.
+
+### Button layout
+
+Dolphin matches physical button positions, not the printed labels. That keeps
+the same layout on every pad:
+
+| GameCube | Action | Xbox | DualSense / DualShock | Switch Pro |
+|---|---|---|---|---|
+| A | Jump / confirm | A (south) | Cross (south) | B (south) |
+| B | Cancel / attack | B (east) | Circle (east) | A (east) |
+| X | Action 1 | X (west) | Square (west) | Y (west) |
+| Y | Action 2 | Y (north) | Triangle (north) | X (north) |
+| Z | Action 3 | RB | R1 | R |
+| Start | Pause | Menu | Options | Plus |
+| Left stick | Move | Left stick | Left stick | Left stick |
+| D-pad | Move | D-pad | D-pad | D-pad |
+| C stick | Camera | Right stick | Right stick | Right stick |
+| L / R | Triggers | LT / RT | L2 / R2 | ZL / ZR |
+
+On a Switch Pro this means GameCube **A** is the south button printed **B**,
+and GameCube **B** is the east button printed **A**. That is intentional: the
+buttons stay in the same physical positions as an Xbox or PlayStation pad.
+
+The profile is stored at:
 
 ```
 %LOCALAPPDATA%\AggressiveInlineRecomp\Config\GCPadNew.ini
 ```
 
-Set the `Device` line to the SDL name of your controller, or delete the file to
-use SDL's default mapping. There is no keyboard gameplay mapping in this build.
+You can edit it by hand from **Open profile**. There is no keyboard gameplay
+mapping in this build.
 
 ## Settings
 

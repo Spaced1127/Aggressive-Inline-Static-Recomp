@@ -17,7 +17,9 @@ The game boots and reaches playable gameplay:
   with working text and 3D background scenes.
 - The Tutorial level loads and renders: world geometry, reflections, skinned
   player character, HUD, and tutorial overlays.
-- Controller input works; the player moves with the main stick.
+- Controller input works with DualSense, DualShock, Xbox, Switch Pro, Steam and
+  other SDL pads; the player moves with the main stick. The launcher has a
+  CONTROLLER page with ready-made layouts and exact SDL device detection.
 - Save states save and reload into gameplay.
 - Audio output works through DSP LLE + Cubeb (user-confirmed; the earlier
   silence was a muted output).
@@ -83,31 +85,34 @@ copy /Y C:\gile\modules\GILE51\<cache>\gGILE51_recomp.dll       build\gGILE51_re
 tools\run_dev.bat
 
 # 6. Build the player release
-powershell -ExecutionPolicy Bypass -File tools\make_release_gile.ps1 -Version 0.0.1
+powershell -ExecutionPolicy Bypass -File tools\make_release_gile.ps1 -Version 0.0.3
 ```
 
-`tools\run_dev.bat` starts the game in a window with the DualSense profile in
-`work\user\Config\GCPadNew.ini`. Edit that file for another controller.
+`tools\run_dev.bat` starts the game in a window with the profile in
+`work\user\Config\GCPadNew.ini`. The release launcher has a **CONTROLLER** page
+with ready-made DualSense, DualShock, Xbox, Switch Pro, Steam and 8BitDo
+layouts, plus an exact "Read from log" device picker.
 
 ## Release
 
 `tools\make_release_gile.ps1` builds:
 
 ```
-dist/AggressiveInline-Recomp-v0.0.2-Windows-x64/
-dist/AggressiveInline-Recomp-v0.0.2-Windows-x64.zip
+dist/AggressiveInline-Recomp-v0.0.3-Windows-x64/
+dist/AggressiveInline-Recomp-v0.0.3-Windows-x64.zip
 ```
 
 The stage contains `gile-launcher.exe`, `gile.exe`, the Clang module,
-`rvz_extract.exe`, `Sys/`, `defaults/GCPadNew.ini`, `LICENSES/`,
-`recomplauncher.json`, the player docs and an empty `game/` folder. The
+`rvz_extract.exe`, `Sys/`, the full `defaults/GCPadNew*.ini` preset set,
+`LICENSES/`, `recomplauncher.json`, the player docs and an empty `game/` folder. The
 launcher accepts an ISO, an RVZ or an extracted folder, verifies `GILE51` and
 the DOL SHA-256, extracts to `%LOCALAPPDATA%\AggressiveInlineRecomp\game`, and
 starts the game with the bundled module.
 
-The v0.0.2 zip size and SHA-256, the widescreen root cause and the packaging
-test results are recorded in
-[`docs/notes/04-widescreen.md`](docs/notes/04-widescreen.md). The earlier
+The v0.0.2 widescreen root cause and packaging results are recorded in
+[`docs/notes/04-widescreen.md`](docs/notes/04-widescreen.md). The v0.0.3
+controller layouts, exact SDL matching and packaging results are in
+[`docs/notes/05-controllers.md`](docs/notes/05-controllers.md). The earlier
 v0.0.1 packaging notes remain in
 [`docs/notes/02-release.md`](docs/notes/02-release.md).
 
