@@ -19,9 +19,11 @@ The recompiled game boots to playable gameplay on Windows:
   import, Clang module, no game data. Zip SHA-256
   `2E358D4B5453E89D6C8E9CC70D52E4DF4EF333E3CEBFDC85CF31CD7DEAA8253E`.
 - Frame-time investigation: GPU is idle (~2-3 ms) and the game is CPU-bound.
-  A cold-cache window hit 1.54 s and 550 ms CPU stalls; the shader cache
-  directory was missing. The launcher now creates it, enables cache affinity
-  and pins to physical cores on 16-thread CPUs. See
+  One captured window held 59.84 FPS; a later window in the same session hit
+  1.54 s and 550 ms CPU stalls. That session began with a missing shader cache
+  directory (now fixed); the stall window may include a transition/pause, so it
+  is not yet attributed to a single cause. The launcher now creates the cache,
+  enables cache affinity and pins to physical cores on 16-thread CPUs. See
   [`notes/03-performance.md`](notes/03-performance.md).
 
 No crash, hang, or unimplemented-stub abort was observed through these scenes.
@@ -162,10 +164,10 @@ sound settings. This is independent of the static module: a JIT/interpreter run
 - **Memory card**: the save/load menu is reachable; actual .gci write/read has
   not been verified.
 - **Performance**: the Clang module is at the 60 FPS cap in the tested scene at
-  3x internal resolution, but a cold shader cache produced CPU-bound 1.5 s
-  stalls. The v0.0.1 release asset predates the `Cache\Shaders` and affinity
-  fixes in `tools/gile_launcher.cs`; rebuild or use the fixed launcher for a
-  validation run.
+  3x internal resolution, but one captured window had CPU-bound 1.5 s stalls.
+  The v0.0.1 release asset predates the `Cache\Shaders` and affinity fixes in
+  `tools/gile_launcher.cs`; rebuild or use the fixed launcher for a validation
+  run.
 - **Missing host function**: `inlineOverlayGetNumContinues` is called by the
   zgui overlay and is not implemented. It is separate from the frame-time issue
   but should be stubbed.
