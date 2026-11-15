@@ -18,8 +18,13 @@ The game boots and reaches playable gameplay:
 - The Tutorial level loads and renders: world geometry, reflections, skinned
   player character, HUD, and tutorial overlays.
 - Controller input works with DualSense, DualShock, Xbox, Switch Pro, Steam and
-  other SDL pads; the player moves with the main stick. The launcher has a
-  CONTROLLER page with ready-made layouts and exact SDL device detection.
+  other SDL pads. The game auto-detects the first connected SDL pad and falls
+  back to it when an existing profile names a different device, so
+  RecompLauncher installs need no controller setup. The CONTROLLER page remains
+  for choosing a specific pad when several are connected.
+- New installs default to 16:9 at the closest 16:9 resolution to the desktop
+  (2560x1440 on a 1440p display). The selected resolution sizes the game window
+  and Fullscreen windowed fills the monitor.
 - Save states save and reload into gameplay.
 - Audio output works through DSP LLE + Cubeb (user-confirmed; the earlier
   silence was a muted output).
@@ -28,7 +33,7 @@ The game boots and reaches playable gameplay:
 - No crash or unimplemented-stub abort has been observed through the first
   level load.
 - A standalone player release is staged in
-  `dist/AggressiveInline-Recomp-v0.0.2-Windows-x64/` with a WinForms launcher,
+  `dist/AggressiveInline-Recomp-v0.0.4-Windows-x64/` with a WinForms launcher,
   direct ISO/RVZ import, the Clang module and no game data.
 - 16:9 widescreen and the Hor+ widescreen hack work in v0.0.2. The v0.0.1
   runner was a stale binary that ignored the aspect settings; the new runner is
@@ -85,7 +90,7 @@ copy /Y C:\gile\modules\GILE51\<cache>\gGILE51_recomp.dll       build\gGILE51_re
 tools\run_dev.bat
 
 # 6. Build the player release
-powershell -ExecutionPolicy Bypass -File tools\make_release_gile.ps1 -Version 0.0.3
+powershell -ExecutionPolicy Bypass -File tools\make_release_gile.ps1 -Version 0.0.4
 ```
 
 `tools\run_dev.bat` starts the game in a window with the profile in
@@ -98,8 +103,8 @@ layouts, plus an exact "Read from log" device picker.
 `tools\make_release_gile.ps1` builds:
 
 ```
-dist/AggressiveInline-Recomp-v0.0.3-Windows-x64/
-dist/AggressiveInline-Recomp-v0.0.3-Windows-x64.zip
+dist/AggressiveInline-Recomp-v0.0.4-Windows-x64/
+dist/AggressiveInline-Recomp-v0.0.4-Windows-x64.zip
 ```
 
 The stage contains `gile-launcher.exe`, `gile.exe`, the Clang module,
@@ -112,8 +117,10 @@ starts the game with the bundled module.
 The v0.0.2 widescreen root cause and packaging results are recorded in
 [`docs/notes/04-widescreen.md`](docs/notes/04-widescreen.md). The v0.0.3
 controller layouts, exact SDL matching and packaging results are in
-[`docs/notes/05-controllers.md`](docs/notes/05-controllers.md). The earlier
-v0.0.1 packaging notes remain in
+[`docs/notes/05-controllers.md`](docs/notes/05-controllers.md). The v0.0.4
+automatic SDL fallback, Aggressive Inline branding and 16:9 window sizing are
+in [`docs/notes/06-controller-runtime-and-resolution.md`](docs/notes/06-controller-runtime-and-resolution.md).
+The earlier v0.0.1 packaging notes remain in
 [`docs/notes/02-release.md`](docs/notes/02-release.md).
 
 ## Automated bring-up

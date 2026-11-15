@@ -1,5 +1,5 @@
 param(
-    [string]$Version = "0.0.3",
+    [string]$Version = "0.0.4",
     [string]$Runner = "H:\Projects\Agressive Inline Static Recompile\build\gile.exe",
     [string]$Module = "H:\Projects\Agressive Inline Static Recompile\build\gGILE51_recomp_clang.dll",
     [string]$Rvz = "H:\Projects\Agressive Inline Static Recompile\build\pyinstaller\dist\rvz_extract.exe",
@@ -46,6 +46,18 @@ $setIcon = Join-Path $root "work\set_icon.exe"
 if ($LASTEXITCODE -ne 0) { throw "set_icon.exe build failed" }
 & $setIcon (Join-Path $stage "gile.exe") (Join-Path $root "assets\gile.ico")
 if ($LASTEXITCODE -ne 0) { throw "gile.exe icon update failed" }
+
+# Stamp Explorer/Task Manager identity so the game is not shown as ModernGekko.
+$setVersion = Join-Path $root "work\set_version_info.exe"
+& $csc /nologo /target:exe /out:"$setVersion" (Join-Path $root "tools\set_version_info.cs")
+if ($LASTEXITCODE -ne 0) { throw "set_version_info.exe build failed" }
+$fileVersion = if (($Version -split '\.').Count -ge 4) { $Version } else { "$Version.0" }
+& $setVersion (Join-Path $stage "gile.exe") $fileVersion `
+    "Aggressive Inline" "Aggressive Inline Static Recomp" "Aggressive Inline Recomp"
+if ($LASTEXITCODE -ne 0) { throw "gile.exe version info failed" }
+& $setVersion (Join-Path $stage "gile-launcher.exe") $fileVersion `
+    "Aggressive Inline Launcher" "Aggressive Inline Static Recomp" "Aggressive Inline Recomp"
+if ($LASTEXITCODE -ne 0) { throw "gile-launcher.exe version info failed" }
 
 Copy-Item -LiteralPath $Sys -Destination (Join-Path $stage "Sys") -Recurse -Force
 Copy-Item -LiteralPath $Licenses -Destination (Join-Path $stage "LICENSES") -Recurse -Force

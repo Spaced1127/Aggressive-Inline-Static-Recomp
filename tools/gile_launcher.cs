@@ -420,6 +420,7 @@ internal static class Program
         arguments.Append("--game \"").Append(gamePath).Append('"');
         arguments.Append(" --module \"").Append(module).Append('"');
         arguments.Append(" --core static --audio cubeb --user-dir \"").Append(o.UserDir).Append('"');
+        arguments.Append(" --title \"Aggressive Inline\"");
         foreach (string pass in o.Pass)
         {
             arguments.Append(' ');
@@ -646,42 +647,76 @@ internal static class Program
         {
             File.WriteAllText(frontend,
                 "[Video]" + Environment.NewLine +
-                "resolution=1920x1080" + Environment.NewLine +
+                "resolution=" + DefaultResolutionValue() + Environment.NewLine +
                 "backend=Vulkan" + Environment.NewLine +
                 "fullscreen=false" + Environment.NewLine +
                 "show_fps_in_title=true" + Environment.NewLine +
                 "mute=false" + Environment.NewLine +
                 "volume=100" + Environment.NewLine +
-                "aspect=auto" + Environment.NewLine +
-                "widescreen_hack=false" + Environment.NewLine +
+                "aspect=wide" + Environment.NewLine +
+                "widescreen_hack=true" + Environment.NewLine +
                 "efb_access=true" + Environment.NewLine);
         }
         else
         {
-            EnsureIniKey(frontend, "Video", "aspect", "auto");
-            EnsureIniKey(frontend, "Video", "widescreen_hack", "false");
+            EnsureIniKey(frontend, "Video", "aspect", "wide");
+            EnsureIniKey(frontend, "Video", "widescreen_hack", "true");
             EnsureIniKey(frontend, "Video", "efb_access", "true");
         }
 
+        // v0.0.4 one-time default: older configs were 1920x1080 with Auto
+        // framing. On a 1440p+ display, adopt 2560x1440 16:9 + widescreen hack
+        // when the player has not already changed away from those defaults.
+        string launcherIni = Path.Combine(userDir, "launcher.ini");
+        if (!GetIniKey(launcherIni, "Launcher", "AspectMigratedV004", "false")
+                .Equals("true", StringComparison.OrdinalIgnoreCase))
+        {
+            string aspect = GetIniKey(frontend, "Video", "aspect", "auto");
+            string hack = GetIniKey(frontend, "Video", "widescreen_hack", "false");
+            if (aspect.Equals("auto", StringComparison.OrdinalIgnoreCase) &&
+                hack.Equals("false", StringComparison.OrdinalIgnoreCase))
+            {
+                SetIniKey(frontend, "Video", "aspect", "wide");
+                SetIniKey(frontend, "Video", "widescreen_hack", "true");
+            }
+            string resolution = GetIniKey(frontend, "Video", "resolution", string.Empty);
+            string preferred = DefaultResolutionValue();
+            if (resolution.Equals("1920x1080", StringComparison.OrdinalIgnoreCase) &&
+                preferred == "2560x1440")
+            {
+                SetIniKey(frontend, "Video", "resolution", preferred);
+            }
+            SetIniKey(launcherIni, "Launcher", "AspectMigratedV004", "true");
+        }
+
+        // Size the runner's window from the selected output resolution. The
+        // runner reads [Display] RenderWindowWidth/Height when it creates the
+        // window, so Windowed mode is the real 2560x1440 size and borderless
+        // still fills the monitor.
+        ApplyDisplayResolution(dolphin,
+            GetIniKey(frontend, "Video", "resolution", DefaultResolutionValue()));
+
+        // The runner creates GCPadNew.ini from the first connected SDL pad when
+        // no profile exists. RecompLauncher never opens the controller page, so
+        // do not pre-seed a DualSense-only profile here. If a pad has already
+        // been logged, start from its matching layout and exact SDL name.
         string controller = Path.Combine(configDir, "GCPadNew.ini");
         if (!File.Exists(controller))
         {
-            string defaultController = Path.Combine(appDir, "defaults", "GCPadNew.ini");
-            // If a pad has already been used, start from the matching layout and
-            // write its exact SDL name instead of assuming a DualSense.
             string detected = DetectControllerDevice(userDir);
-            string preset = ControllerPresetForDevice(detected);
-            string template = Path.Combine(appDir, "defaults",
-                                           "GCPadNew." + preset + ".ini");
-            try
+            if (!string.IsNullOrEmpty(detected))
             {
-                if (!string.IsNullOrEmpty(detected) && File.Exists(template))
-                    WriteControllerProfile(template, controller, detected);
-                else if (File.Exists(defaultController))
-                    File.Copy(defaultController, controller);
+                string preset = ControllerPresetForDevice(detected);
+                string template = Path.Combine(appDir, "defaults",
+                                               "GCPadNew." + preset + ".ini");
+                try
+                {
+                    if (File.Exists(template))
+                        WriteControllerProfile(template, controller, detected);
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
             }
-            catch (IOException) { }
-            catch (UnauthorizedAccessException) { }
         }
     }
 
@@ -797,6 +832,61 @@ internal static class Program
             lines.Insert(section + 1, "Device = " + device);
         }
         File.WriteAllLines(target, lines);
+    }
+
+    private static readonly Dictionary<string, string> DisplayResolutions =
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "640x528", "640x360" },
+            { "1280x720", "1280x720" },
+            { "1920x1080", "1920x1080" },
+            { "2560x1440", "2560x1440" },
+            { "3840x2160", "3840x2160" },
+            { "5120x2880", "5120x2880" },
+            { "7680x4320", "7680x4320" },
+        };
+
+    private static string DefaultResolutionValue()
+    {
+        try
+        {
+            Rectangle bounds = Screen.PrimaryScreen.Bounds;
+            // Keep 4K displays at 2560x1440 by default: it is the native
+            // 1440p target and avoids a needless 6x CPU load.
+            if (bounds.Width >= 2560 && bounds.Height >= 1440)
+                return "2560x1440";
+            if (bounds.Width >= 1920 && bounds.Height >= 1080)
+                return "1920x1080";
+        }
+        catch { }
+        return "1280x720";
+    }
+
+    private static string DisplayResolutionFor(string resolution)
+    {
+        string display;
+        return DisplayResolutions.TryGetValue(resolution, out display)
+            ? display
+            : resolution;
+    }
+
+    private static void ApplyDisplayResolution(string dolphinIni, string resolution)
+    {
+        string display = DisplayResolutionFor(resolution);
+        int separator = display.IndexOf('x');
+        int width;
+        int height;
+        if (separator <= 0 ||
+            !int.TryParse(display.Substring(0, separator), NumberStyles.Integer,
+                          CultureInfo.InvariantCulture, out width) ||
+            !int.TryParse(display.Substring(separator + 1), NumberStyles.Integer,
+                          CultureInfo.InvariantCulture, out height) ||
+            width < 320 || height < 240)
+            return;
+        SetIniKey(dolphinIni, "Display", "RenderWindowWidth",
+                  width.ToString(CultureInfo.InvariantCulture));
+        SetIniKey(dolphinIni, "Display", "RenderWindowHeight",
+                  height.ToString(CultureInfo.InvariantCulture));
     }
 
     private static void EnsureIniKey(string path, string section, string key, string value)
@@ -1117,7 +1207,7 @@ internal static class Program
 
         private static readonly string[] ResLabels =
         {
-            "1x (640x528)", "2x (1280x720)", "3x (1920x1080)", "4x (2560x1440)",
+            "1x (640x360)", "2x (1280x720)", "3x (1920x1080)", "4x (2560x1440)",
             "6x (3840x2160)", "8x (5120x2880)", "12x (7680x4320)"
         };
 
@@ -1697,7 +1787,7 @@ internal static class Program
         {
             CardPanel card = MakeCard(page, 0, 0, 950, 632, "GRAPHICS");
 
-            MakeLabel(card, "Internal resolution (EFB upscale)", 18, 56, 420, 20,
+            MakeLabel(card, "Resolution (output + 3D scale)", 18, 56, 420, 20,
                       TextMain, 9F, FontStyle.Bold);
             _resolution = MakeCombo(card, 18, 80, 420);
             for (int i = 0; i < ResLabels.Length; i++)
@@ -1709,7 +1799,7 @@ internal static class Program
             };
 
             MakeLabel(card,
-                      "The 3D scene renders at this resolution, not the window size. 3x native is 1920x1344 for this game.",
+                      "Renders at this resolution and fills the screen in Fullscreen windowed. 4x (2560x1440) matches a 1440p display; 3x (1920x1080) is the lighter option.",
                       18, 112, 900, 20, TextDim, 8.5F, FontStyle.Regular);
 
             MakeLabel(card, "Graphics API", 18, 154, 420, 20,
@@ -2133,8 +2223,8 @@ internal static class Program
             SelectChoice(_audio,
                          GetIniKey(_launcherIni, "Launcher", "Audio", "cubeb"));
             SelectChoice(_aspect,
-                         GetIniKey(configPath, "Video", "aspect", "auto"));
-            _wideHack.Checked = GetIniKey(configPath, "Video", "widescreen_hack", "false")
+                         GetIniKey(configPath, "Video", "aspect", "wide"));
+            _wideHack.Checked = GetIniKey(configPath, "Video", "widescreen_hack", "true")
                 .Equals("true", StringComparison.OrdinalIgnoreCase);
 
             string fps = GetIniKey(_launcherIni, "Launcher", "ShowFps",
@@ -2189,11 +2279,13 @@ internal static class Program
                 "Settings", "InternalResolution", ResolutionScale(Selected(_resolution)));
             SetIniKey(Path.Combine(_userDir, "Config", "Dolphin.ini"),
                 "Core", "GFXBackend", GraphicsName(Selected(_graphics)));
+            ApplyDisplayResolution(Path.Combine(_userDir, "Config", "Dolphin.ini"),
+                Selected(_resolution));
         }
 
         private static string DefaultResolution()
         {
-            return "1920x1080";
+            return DefaultResolutionValue();
         }
 
         private static string ResolutionScale(string value)

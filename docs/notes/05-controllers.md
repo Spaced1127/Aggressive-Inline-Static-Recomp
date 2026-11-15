@@ -144,3 +144,15 @@ The release contains no game data.
 - The official Wii U GameCube adapter is handled by Dolphin's native adapter
   path, not by these SDL presets. Third-party adapters that expose a normal SDL
   pad work through the generic layout.
+
+## Update in v0.0.4
+
+The controller page is no longer required. The launcher no longer pre-seeds a
+DualSense profile, so the runner's `EnsureDefaultControllerConfig` detects the
+first connected SDL pad on first play. Existing profiles also work: the
+runtime's `DeviceContainer::FindDevice` now falls back to the first SDL pad when
+the configured device is missing. An Xbox One Controller was detected and bound
+on the build machine; a physical button walk-through is still recommended.
+
+See
+[`06-controller-runtime-and-resolution.md`](06-controller-runtime-and-resolution.md).

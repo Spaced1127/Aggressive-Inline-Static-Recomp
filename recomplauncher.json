@@ -76,19 +76,19 @@
         { "path": "{local}/AggressiveInlineRecomp/config.ini" }
       ],
       "new": {
-        "Video/resolution": "1920x1080",
+        "Video/resolution": "2560x1440",
         "Video/backend": "Vulkan",
         "Video/fullscreen": "false",
         "Video/show_fps_in_title": "true",
-        "Video/aspect": "auto",
-        "Video/widescreen_hack": "false",
+        "Video/aspect": "wide",
+        "Video/widescreen_hack": "true",
         "Video/mute": "false",
         "Video/volume": "100",
         "Video/efb_access": "true"
       },
       "ensure": {
-        "Video/aspect": "auto",
-        "Video/widescreen_hack": "false"
+        "Video/aspect": "wide",
+        "Video/widescreen_hack": "true"
       },
       "always": {
         "Video/efb_access": "true"
@@ -100,18 +100,18 @@
       "id": "resolution",
       "label": "Resolution",
       "in": "frontend",
-      "help": "The internal render resolution, not the window size. 3x native is 1920x1344 for this game. Lower it if the game drops below 60 FPS.",
+      "help": "The output resolution and 3D render scale. 4x (2560x1440) matches a 1440p display; Fullscreen windowed fills the screen. Lower it if the game drops below 60 FPS.",
       "choices": [
-        { "label": "1x (640x448)", "set": { "Video/resolution": "640x528" } },
-        { "label": "2x (1280x896)", "set": { "Video/resolution": "1280x720" } },
-        { "label": "3x (1920x1344)", "set": { "Video/resolution": "1920x1080" } },
-        { "label": "4x (2560x1792)", "set": { "Video/resolution": "2560x1440" } },
-        { "label": "6x (3840x2688)", "set": { "Video/resolution": "3840x2160" } },
-        { "label": "8x (5120x3584)", "set": { "Video/resolution": "5120x2880" } },
-        { "label": "12x (7680x5376)", "set": { "Video/resolution": "7680x4320" } }
+        { "label": "1x (640x360)", "set": { "Video/resolution": "640x528" } },
+        { "label": "2x (1280x720)", "set": { "Video/resolution": "1280x720" } },
+        { "label": "3x (1920x1080)", "set": { "Video/resolution": "1920x1080" } },
+        { "label": "4x (2560x1440)", "set": { "Video/resolution": "2560x1440" } },
+        { "label": "6x (3840x2160)", "set": { "Video/resolution": "3840x2160" } },
+        { "label": "8x (5120x2880)", "set": { "Video/resolution": "5120x2880" } },
+        { "label": "12x (7680x4320)", "set": { "Video/resolution": "7680x4320" } }
       ],
       "defaults": {
-        "Video/resolution": "1920x1080"
+        "Video/resolution": "2560x1440"
       }
     },
     {
@@ -137,7 +137,7 @@
         { "label": "Stretch", "set": { "Video/aspect": "stretch" } }
       ],
       "defaults": {
-        "Video/aspect": "auto"
+        "Video/aspect": "wide"
       }
     },
     {
@@ -150,7 +150,7 @@
         { "label": "On", "set": { "Video/widescreen_hack": "true" } }
       ],
       "defaults": {
-        "Video/widescreen_hack": "false"
+        "Video/widescreen_hack": "true"
       }
     },
     {

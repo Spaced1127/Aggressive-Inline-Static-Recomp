@@ -1,6 +1,6 @@
 # Project state
 
-Updated: 2026-11-11
+Updated: 2026-11-14
 
 ## Latest verified result
 
@@ -25,6 +25,11 @@ The recompiled game boots to playable gameplay on Windows:
   SHA-256
   `7CD1C5D6CC80DE17BBE9B80E37695DFDD8E06CDF825DFDF775DB0A08AE012D04`.
   No game data.
+- Player release v0.0.4 staged and tested from `dist/`: automatic SDL
+  controller fallback, Aggressive Inline branding and 16:9 window sizing. Zip
+  size 26,080,740 bytes, SHA-256
+  `9AA57FE8DD09845B3FF5822340D38B839346AA2E676050A66E1B20B0092F7789`.
+  No game data.
 - 16:9 widescreen and the Hor+ widescreen hack are fixed in v0.0.2. The v0.0.1
   runner was a stale binary that ignored `aspect`/`widescreen_hack`; the new
   runner is built from the current ModernGekko source. See
@@ -33,6 +38,12 @@ The recompiled game boots to playable gameplay on Windows:
   Xbox Wireless/Series/One/360, Switch Pro, Steam Controller and 8BitDo
   layouts, plus a launcher that reads the exact `SDL/<id>/<name>` from
   `dolphin.log`. See [`notes/05-controllers.md`](notes/05-controllers.md).
+- Controller support is automatic in v0.0.4: the runner detects the first SDL
+  pad and existing profiles fall back to the first SDL pad, so RecompLauncher
+  installs need no controller page. The window is branded **Aggressive Inline**
+  and sized from the selected 16:9 output resolution, with 2560x1440 as the
+  default on 1440p+ desktops. See
+  [`notes/06-controller-runtime-and-resolution.md`](notes/06-controller-runtime-and-resolution.md).
 - Frame-time investigation: GPU is idle (~2-3 ms) and the game is CPU-bound.
   One captured window held 59.84 FPS; a later window in the same session hit
   1.54 s and 550 ms CPU stalls. That session began with a missing shader cache
@@ -142,11 +153,12 @@ menu if those values need checking.
    save/load, and at least one full level.
 4. **SMC review**: inspect the 100 `generated_smc.txt` ranges; only patch sites
    that actually write executable memory at runtime.
-5. **Packaging**: done for v0.0.3. The launcher accepts ISO, RVZ or an extracted
+5. **Packaging**: done for v0.0.4. The launcher accepts ISO, RVZ or an extracted
    folder, verifies `GILE51`/DOL hash, extracts to
    `%LOCALAPPDATA%\AggressiveInlineRecomp`, and starts the bundled module.
-   The release ships the full `defaults/GCPadNew*.ini` preset set. See
-   [`notes/05-controllers.md`](notes/05-controllers.md).
+   The release ships the full `defaults/GCPadNew*.ini` preset set, branded
+   `gile.exe`/`gile-launcher.exe` version info and 16:9 window sizing. See
+   [`notes/06-controller-runtime-and-resolution.md`](notes/06-controller-runtime-and-resolution.md).
 6. **Frame-time validation**: capture a clean active-gameplay window with the
    fixed launcher and warm shader cache. If 100 ms+ CPU stalls remain, build a
    PGO module from a gameplay profile. See
@@ -192,7 +204,7 @@ tools\build_msvc.bat
 tools\run_dev.bat
 
 # Build the player release (stage + zip)
-powershell -ExecutionPolicy Bypass -File tools\make_release_gile.ps1 -Version 0.0.3
+powershell -ExecutionPolicy Bypass -File tools\make_release_gile.ps1 -Version 0.0.4
 
 # Headless automation screenshots
 powershell -ExecutionPolicy Bypass -File tools\auto_probe.ps1 -Seconds 50 -Shots 10,25,45

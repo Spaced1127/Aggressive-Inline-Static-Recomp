@@ -48,7 +48,7 @@ The launcher refuses a different revision.
 
 ## Controls
 
-The launcher ships layouts for the major controller families:
+The game supports the major controller families:
 
 - DualSense (PS5)
 - DualShock 4 (PS4) and DualShock 3 (PS3)
@@ -57,22 +57,25 @@ The launcher ships layouts for the major controller families:
 - Steam Controller
 - 8BitDo and other SDL pads (generic Xbox-style layout)
 
-To use one:
+The game auto-detects the first connected SDL gamepad on first play and writes
+the matching profile. You do not need the launcher page for a single pad, and
+this also works when RecompLauncher starts the game directly.
+
+If a profile already exists for a different pad, the game falls back to the
+first connected SDL pad, so an Xbox, PlayStation or Switch pad still works
+without editing the file.
+
+To choose a specific pad, for example when two controllers are connected:
 
 1. Connect the controller and start the game once so ModernGekko logs its SDL
-   name. You can also skip this if the preset's default name already matches.
+   name.
 2. Open **CONTROLLER** in the launcher.
 3. Pick your layout.
-4. Press **Read from log** to fill the exact SDL device name. This is the
-   reliable step when you have more than one controller connected, or when the
-   controller reports a different name than the preset expects.
+4. Press **Read from log** to fill the exact SDL device name.
 5. Press **Apply layout**, then restart the game.
 
 Dolphin matches the device name exactly, including `SDL/0/` or `SDL/1/`. The
 launcher backs up the old `GCPadNew.ini` before writing a new one.
-
-The default profile is DualSense. If no profile exists yet and the log shows a
-controller, the launcher creates the matching layout automatically.
 
 ### Button layout
 
@@ -105,15 +108,31 @@ The profile is stored at:
 You can edit it by hand from **Open profile**. There is no keyboard gameplay
 mapping in this build.
 
+## Resolution and full screen
+
+- The resolution list is 16:9: 640x360, 1280x720, 1920x1080, 2560x1440,
+  3840x2160, 5120x2880 and 7680x4320.
+- **4x (2560x1440)** matches a 1440p display and is the default on a 1440p or
+  larger desktop.
+- The selected resolution sizes the game window. **Fullscreen windowed** fills
+  the monitor.
+- New installs default to 16:9 widescreen with the widescreen hack. A v0.0.3
+  config still on Auto/off is moved to 16:9 once; change it in **GRAPHICS** if
+  you prefer 4:3.
+- The 3D scene is rendered at the integer EFB scale (4x is 2560x2112 from the
+  640x528 EFB) and presented at the selected 16:9 output size (2560x1440).
+
 ## Settings
 
 The launcher exposes:
 
 - **Graphics API**: Vulkan (default), D3D12 or OpenGL.
-- **Internal resolution**: 1x to 12x. 3x native is 1920x1344 for this game.
-- **Aspect ratio**: Auto keeps the original 4:3 framing; 16:9 fills a
-  widescreen display; Stretch fills the window.
-- **Widescreen hack**: widens the 3D projection. The 2D HUD may stretch.
+- **Resolution**: 16:9 output sizes from 640x360 to 7680x4320. 4x (2560x1440)
+  is the 1440p default; the selected size also sets the window size.
+- **Aspect ratio**: 16:9 widescreen is the default for new installs; Auto keeps
+  the original 4:3 framing; Stretch fills the window.
+- **Widescreen hack**: widens the 3D projection. On by default for new installs.
+  The 2D HUD may stretch.
 - **Window mode**: fullscreen windowed (default), fullscreen, or windowed.
 - **Show FPS** in the window title.
 

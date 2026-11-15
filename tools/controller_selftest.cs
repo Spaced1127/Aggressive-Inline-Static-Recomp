@@ -136,16 +136,91 @@ internal static class ControllerSelfTest
         Check(kept.Contains("Device = SDL/0/Xbox Wireless Controller"),
             "existing profile kept on later launch");
 
-        // With no log and no profile, the DualSense default is the fallback.
+        // With no log and no profile the launcher must leave GCPadNew.ini
+        // absent so the runner can auto-detect the first SDL pad. This is the
+        // RecompLauncher path: it never opens the controller page.
         string clean = Path.Combine(Path.GetTempPath(),
             "gile-controller-clean-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(clean, "logs"));
         ensure.Invoke(null, new object[] { clean, root });
         string cleanProfile = Path.Combine(clean, "Config", "GCPadNew.ini");
-        Check(File.Exists(cleanProfile), "default profile created");
-        Check(File.ReadAllText(cleanProfile).Contains(
-              "Device = SDL/0/DualSense Wireless Controller"),
-            "default profile is DualSense");
+        Check(!File.Exists(cleanProfile), "no default controller profile pre-seeded");
+
+        string cleanDolphin = Path.Combine(clean, "Config", "Dolphin.ini");
+        string cleanConfig = Path.Combine(clean, "config.ini");
+        Check(File.Exists(cleanDolphin), "default Dolphin.ini created");
+        Check(File.Exists(cleanConfig), "default config.ini created");
+        string cleanDolphinText = File.ReadAllText(cleanDolphin);
+        Check(cleanDolphinText.Contains("RenderWindowWidth = "),
+            "default window width written");
+        Check(cleanDolphinText.Contains("RenderWindowHeight = "),
+            "default window height written");
+        string cleanConfigText = File.ReadAllText(cleanConfig);
+        Check(cleanConfigText.Contains("aspect=wide"), "new config is 16:9");
+        Check(cleanConfigText.Contains("widescreen_hack=true"),
+            "new config enables widescreen hack");
+        string cleanLauncher = Path.Combine(clean, "launcher.ini");
+        Check(File.Exists(cleanLauncher) &&
+              File.ReadAllText(cleanLauncher).Contains("AspectMigratedV004 = true"),
+            "migration marker written");
+
+        // A v0.0.3 config (1920x1080, Auto, hack off) should move to
+        // 2560x1440 16:9 on a 1440p display, but only once.
+        MethodInfo defaultRes = Method(program, "DefaultResolutionValue");
+        string preferred = (string)defaultRes.Invoke(null, null);
+        string legacy = Path.Combine(Path.GetTempPath(),
+            "gile-controller-legacy-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(legacy, "logs"));
+        string legacyConfig = Path.Combine(legacy, "config.ini");
+        File.WriteAllText(legacyConfig,
+            "[Video]\nresolution=1920x1080\naspect=auto\nwidescreen_hack=false\n");
+        ensure.Invoke(null, new object[] { legacy, root });
+        string legacyText = File.ReadAllText(legacyConfig);
+        if (preferred == "2560x1440")
+        {
+            Check(legacyText.Contains("resolution = 2560x1440"),
+                "legacy resolution migrated to 1440p");
+            Check(legacyText.Contains("aspect = wide"),
+                "legacy aspect migrated to 16:9");
+            Check(legacyText.Contains("widescreen_hack = true"),
+                "legacy widescreen hack migrated on");
+        }
+
+        // A later explicit Auto/off choice must survive the next launch.
+        File.WriteAllText(legacyConfig,
+            "[Video]\nresolution=1920x1080\naspect=auto\nwidescreen_hack=false\n");
+        Directory.Delete(Path.Combine(legacy, "Config"), true);
+        ensure.Invoke(null, new object[] { legacy, root });
+        MethodInfo getIni = Method(program, "GetIniKey");
+        string keptAspect = (string)getIni.Invoke(null,
+            new object[] { legacyConfig, "Video", "aspect", "" });
+        string keptHack = (string)getIni.Invoke(null,
+            new object[] { legacyConfig, "Video", "widescreen_hack", "" });
+        Check(keptAspect == "auto" && keptHack == "false",
+            "later 4:3 choice not overridden");
+        try { Directory.Delete(legacy, true); }
+        catch { }
+
+        // 16:9 display sizing: the runner key 640x528 is the 1x EFB scale,
+        // the window/output size is 640x360.
+        MethodInfo applyDisplay = Method(program, "ApplyDisplayResolution");
+        string sizeProbe = Path.Combine(clean, "Config", "Dolphin-size.ini");
+        File.WriteAllText(sizeProbe, "[Display]\nFullscreen = False\n");
+        applyDisplay.Invoke(null, new object[] { sizeProbe, "640x528" });
+        string sizeText = File.ReadAllText(sizeProbe);
+        Check(sizeText.Contains("RenderWindowWidth = 640"), "1x output width");
+        Check(sizeText.Contains("RenderWindowHeight = 360"), "1x output height 16:9");
+
+        applyDisplay.Invoke(null, new object[] { sizeProbe, "2560x1440" });
+        sizeText = File.ReadAllText(sizeProbe);
+        Check(sizeText.Contains("RenderWindowWidth = 2560"), "1440p output width");
+        Check(sizeText.Contains("RenderWindowHeight = 1440"), "1440p output height");
+
+        applyDisplay.Invoke(null, new object[] { sizeProbe, "1280x720" });
+        sizeText = File.ReadAllText(sizeProbe);
+        Check(sizeText.Contains("RenderWindowWidth = 1280"), "720p output width");
+        Check(sizeText.Contains("RenderWindowHeight = 720"), "720p output height");
+
         try { Directory.Delete(clean, true); }
         catch { }
 
