@@ -2,11 +2,12 @@
 """GameCube disc / DOL / FST inspection and extraction.
 
 Usage:
-    python tools/gcdisc.py info    <game.iso>
-    python tools/gcdisc.py list    <game.iso> [path-filter]
-    python tools/gcdisc.py extract <game.iso> <out-dir> [path-filter]
-    python tools/gcdisc.py dol     <game.iso> <out-dir>
+    python tools/gcdisc.py info    <game.iso|game.rvz>
+    python tools/gcdisc.py list    <game.iso|game.rvz> [path-filter]
+    python tools/gcdisc.py extract <game.iso|game.rvz> <out-dir> [path-filter]
+    python tools/gcdisc.py dol     <game.iso|game.rvz> <out-dir>
 
+The source format is detected by magic: an ISO/GCM file or RVZ\\x01.
 The DOL is written section-by-section with a JSON manifest so it can be
 loaded into a disassembler at the original virtual addresses.
 """
@@ -20,6 +21,26 @@ from pathlib import Path
 
 GC_MAGIC = 0xC2339F3D
 DOL_HEADER_SIZE = 0x100
+
+
+def _read_at(source, offset: int, size: int) -> bytes:
+    """Read from an ISO Path or any object with read_at(offset, size)."""
+    if isinstance(source, (str, Path)):
+        with Path(source).open("rb") as f:
+            f.seek(offset)
+            return f.read(size)
+    return source.read_at(offset, size)
+
+
+def open_source(path):
+    """Return a Path for an ISO or an RvzReader for an RVZ image."""
+    path = Path(path)
+    with path.open("rb") as f:
+        magic = f.read(4)
+    if magic == b"RVZ\x01":
+        from rvz_extract import RvzReader
+        return RvzReader(path)
+    return path
 
 
 @dataclass
@@ -84,35 +105,22 @@ def parse_dol(data: bytes, file_offset: int = 0) -> Dol:
     return Dol(sections, bss_addr, bss_size, entry)
 
 
-def read_dol(iso: Path) -> tuple[Dol, bytes]:
-    with iso.open("rb") as f:
-        f.seek(0x420)
-        dol_offset = struct.unpack(">I", f.read(4))[0]
-        f.seek(dol_offset)
-        hdr = f.read(DOL_HEADER_SIZE)
-        dol = parse_dol(hdr)
-        image = bytearray()
-        data = bytearray()
-        max_end = max((s.file_offset + s.size for s in dol.sections), default=0)
-        f.seek(dol_offset)
-        raw = f.read(max_end)
-        for s in dol.sections:
-            chunk = raw[s.file_offset:s.file_offset + s.size]
-            if len(chunk) != s.size:
-                raise ValueError(f"DOL section {s.kind}{s.index} truncated")
-            if s.kind == "text":
-                image.extend(chunk)
-            data.extend(chunk)
-        return dol, bytes(raw)
+def read_dol(source) -> tuple[Dol, bytes]:
+    dol_offset = struct.unpack(">I", _read_at(source, 0x420, 4))[0]
+    hdr = _read_at(source, dol_offset, DOL_HEADER_SIZE)
+    dol = parse_dol(hdr)
+    max_end = max((s.file_offset + s.size for s in dol.sections), default=0)
+    raw = _read_at(source, dol_offset, max_end)
+    for s in dol.sections:
+        chunk = raw[s.file_offset:s.file_offset + s.size]
+        if len(chunk) != s.size:
+            raise ValueError(f"DOL section {s.kind}{s.index} truncated")
+    return dol, raw
 
 
-def parse_fst(iso: Path) -> tuple[list[FstEntry], int, int]:
-    with iso.open("rb") as f:
-        f.seek(0x424)
-        fst_offset = struct.unpack(">I", f.read(4))[0]
-        fst_size = struct.unpack(">I", f.read(4))[0]
-        f.seek(fst_offset)
-        fst = f.read(fst_size)
+def parse_fst(source) -> tuple[list[FstEntry], int, int]:
+    fst_offset, fst_size = struct.unpack(">II", _read_at(source, 0x424, 8))
+    fst = _read_at(source, fst_offset, fst_size)
     if len(fst) < 12:
         raise ValueError("FST too small")
 
@@ -186,28 +194,26 @@ def walk(entries: list[FstEntry], prefix: str = ""):
             yield path, e
 
 
-def open_section(iso: Path, dol: Dol, section: DolSection) -> bytes:
-    with iso.open("rb") as f:
-        f.seek(0x420)
-        dol_offset = struct.unpack(">I", f.read(4))[0]
-        f.seek(dol_offset + section.file_offset)
-        return f.read(section.size)
+def open_section(source, dol: Dol, section: DolSection) -> bytes:
+    dol_offset = struct.unpack(">I", _read_at(source, 0x420, 4))[0]
+    return _read_at(source, dol_offset + section.file_offset, section.size)
 
 
-def cmd_info(iso: Path):
-    with iso.open("rb") as f:
-        hdr = f.read(0x440)
-        f.seek(0x440)
-        bi2 = f.read(0x40)
+def cmd_info(source, label: str | None = None):
+    hdr = _read_at(source, 0, 0x440)
+    bi2 = _read_at(source, 0x440, 0x40)
     magic, = struct.unpack_from(">I", hdr, 0x1C)
     dol_off, fst_off, fst_size, fst_max = struct.unpack_from(">IIII", hdr, 0x420)
     title = hdr[0x20:0x60].split(b"\x00")[0].decode("shift_jis", errors="replace")
-    dol, _ = read_dol(iso)
-    root, _, _ = parse_fst(iso)
+    dol, _ = read_dol(source)
+    root, _, _ = parse_fst(source)
     files = list(walk(root))
 
-    print(f"File:        {iso}")
-    print(f"Size:        {iso.stat().st_size:,} bytes")
+    size = getattr(source, "iso_size", None)
+    if size is None:
+        size = Path(source).stat().st_size
+    print(f"File:        {label or source}")
+    print(f"Size:        {size:,} bytes")
     print(f"Game ID:     {hdr[0:6].decode('ascii', errors='replace')}")
     print(f"Title:       {title}")
     print(f"Magic:       {magic:#010x} {'(GameCube)' if magic == GC_MAGIC else '(unexpected)'}")
@@ -245,26 +251,24 @@ def cmd_list(iso: Path, filt: str | None):
             print(f"{'-':1} {e.size:12}  {path}")
 
 
-def cmd_extract(iso: Path, out_dir: Path, filt: str | None):
-    root, _, _ = parse_fst(iso)
+def cmd_extract(source, out_dir: Path, filt: str | None):
+    root, _, _ = parse_fst(source)
     out_dir.mkdir(parents=True, exist_ok=True)
     count = 0
     total = 0
-    with iso.open("rb") as f:
-        for path, e in walk(root):
-            if e.is_dir:
-                continue
-            if filt and filt.lower() not in path.lower():
-                continue
-            dest = out_dir / path
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            f.seek(e.offset)
-            data = f.read(e.size)
-            if len(data) != e.size:
-                raise ValueError(f"truncated file {path}")
-            dest.write_bytes(data)
-            count += 1
-            total += e.size
+    for path, e in walk(root):
+        if e.is_dir:
+            continue
+        if filt and filt.lower() not in path.lower():
+            continue
+        dest = out_dir / path
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        data = _read_at(source, e.offset, e.size)
+        if len(data) != e.size:
+            raise ValueError(f"truncated file {path}")
+        dest.write_bytes(data)
+        count += 1
+        total += e.size
     print(f"Extracted {count} files ({total:,} bytes) to {out_dir}")
 
 
@@ -290,24 +294,30 @@ def main(argv: list[str]) -> int:
     if len(argv) < 3:
         print(__doc__.strip())
         return 2
-    cmd, iso = argv[1], Path(argv[2])
-    if cmd == "info":
-        cmd_info(iso)
-    elif cmd == "list":
-        cmd_list(iso, argv[3] if len(argv) > 3 else None)
-    elif cmd == "extract":
-        if len(argv) < 4:
-            print("extract needs an output directory")
+    cmd, label = argv[1], argv[2]
+    source = open_source(Path(label))
+    try:
+        if cmd == "info":
+            cmd_info(source, label)
+        elif cmd == "list":
+            cmd_list(source, argv[3] if len(argv) > 3 else None)
+        elif cmd == "extract":
+            if len(argv) < 4:
+                print("extract needs an output directory")
+                return 2
+            cmd_extract(source, Path(argv[3]), argv[4] if len(argv) > 4 else None)
+        elif cmd == "dol":
+            if len(argv) < 4:
+                print("dol needs an output directory")
+                return 2
+            cmd_dol(source, Path(argv[3]))
+        else:
+            print(f"unknown command {cmd!r}")
             return 2
-        cmd_extract(iso, Path(argv[3]), argv[4] if len(argv) > 4 else None)
-    elif cmd == "dol":
-        if len(argv) < 4:
-            print("dol needs an output directory")
-            return 2
-        cmd_dol(iso, Path(argv[3]))
-    else:
-        print(f"unknown command {cmd!r}")
-        return 2
+    finally:
+        close = getattr(source, "close", None)
+        if close:
+            close()
     return 0
 
 

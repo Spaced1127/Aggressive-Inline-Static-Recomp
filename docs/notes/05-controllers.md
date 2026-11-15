@@ -45,12 +45,19 @@ full GameCube mapping and only the default `Device` line differs:
 | `GCPadNew.xbox-one.ini` | `SDL/0/Xbox One Controller` |
 | `GCPadNew.xbox360.ini` | `SDL/0/Xbox 360 Controller` |
 | `GCPadNew.xbox-generic.ini` | `SDL/0/Xbox Controller` |
-| `GCPadNew.switch-pro.ini` | `SDL/0/Nintendo Switch Pro Controller` |
+| `GCPadNew.switch-pro.ini` | `SDL/0/Nintendo Switch Pro Controller` (Nintendo layout) |
 | `GCPadNew.steam.ini` | `SDL/0/Steam Controller` |
-| `GCPadNew.8bitdo.ini` | `SDL/0/8BitDo Pro 2` |
+| `GCPadNew.8bitdo.ini` | `SDL/0/8BitDo Pro 2` (standard layout) |
+| `GCPadNew.8bitdo-nintendo.ini` | `SDL/0/8BitDo Pro 2` (Nintendo layout) |
 | `GCPadNew.generic.ini` | `SDL/0/Gamepad` |
 
 Unknown pads fall back to the generic Xbox-style layout.
+
+The 8BitDo Nintendo preset and the swapped `switch-pro` bindings were added in
+the pending pre-release batch. The runtime now detects Nintendo-mode 8BitDo pads
+from their live SDL mapping, so the preset is a manual override, not a
+requirement. See
+[`09-8bitdo-nintendo-mapping.md`](09-8bitdo-nintendo-mapping.md).
 
 ### Launcher CONTROLLER page
 
@@ -103,7 +110,8 @@ private helpers through reflection. All checks pass:
 
 - Two pads are read from a realistic log; keyboard entries are skipped.
 - Xbox Wireless, Series, One, 360, DualSense, DualShock 4/3, Switch Pro,
-  8BitDo and unknown devices map to the right preset.
+  8BitDo (standard and Nintendo presets) and unknown devices map to the right
+  preset.
 - `EnsureConfig` creates an Xbox profile when the log has an Xbox and no
   profile exists.
 - Applying a preset with `SDL/1/...` preserves the custom device id and the

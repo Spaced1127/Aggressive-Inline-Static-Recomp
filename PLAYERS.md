@@ -22,9 +22,9 @@ The first run verifies the disc and extracts it to:
 %LOCALAPPDATA%\AggressiveInlineRecomp\game
 ```
 
-The RVZ path needs about 1.5 GB of temporary disk space while it decompresses,
-then about 1.5 GB for the extracted game. The temporary ISO is deleted after
-extraction.
+The RVZ path reads the compressed groups directly and writes the same `sys/` +
+`files/` layout as the ISO path. No temporary ISO is created. The extracted game
+is about 883 MB.
 
 You can also start from the command line:
 
@@ -50,20 +50,38 @@ The launcher refuses a different revision.
 
 The game supports the major controller families:
 
-- DualSense (PS5)
+- DualSense (PS5) and DualSense Edge
 - DualShock 4 (PS4) and DualShock 3 (PS3)
 - Xbox Wireless, Xbox Series X/S, Xbox One and Xbox 360
+- Xbox Elite Series 1 and Series 2
 - Switch Pro
 - Steam Controller
-- 8BitDo and other SDL pads (generic Xbox-style layout)
+- 8BitDo Pro 2 and other 8BitDo pads (standard or Nintendo mode, detected
+  automatically)
+- Other SDL pads (generic Xbox-style layout)
+
+DualSense Edge and Xbox Elite are identified by the SDL GUID (VID/PID), not by
+the product name. They use the standard DualSense or Xbox layout. The Edge's
+back paddles and Fn buttons and the Elite's four paddles are intentionally
+unbound; they do not duplicate or override the face buttons. If the
+controller's own software maps a paddle to a standard button, that assignment
+happens before SDL.
 
 The game auto-detects the first connected SDL gamepad on first play and writes
 the matching profile. You do not need the launcher page for a single pad, and
 this also works when RecompLauncher starts the game directly.
 
+8BitDo pads are detected from their live SDL button mapping, not their name. A
+Pro 2 in Nintendo or Switch mode reports the printed **B** as SDL `A`, so the
+runner switches to the Nintendo layout and keeps the labelled buttons in the
+right positions. An 8BitDo Ultimate or 64 reports a standard mapping and keeps
+the normal Xbox-style layout. The runner also corrects a reversed D-pad if the
+pad's mapping reports one.
+
 If a profile already exists for a different pad, the game falls back to the
-first connected SDL pad, so an Xbox, PlayStation or Switch pad still works
-without editing the file.
+first connected SDL pad, so an Xbox, PlayStation, Switch or 8BitDo pad still
+works without editing the file. A hand-edited profile is preserved while that
+same pad is connected.
 
 To choose a specific pad, for example when two controllers are connected:
 
@@ -76,6 +94,16 @@ To choose a specific pad, for example when two controllers are connected:
 
 Dolphin matches the device name exactly, including `SDL/0/` or `SDL/1/`. The
 launcher backs up the old `GCPadNew.ini` before writing a new one.
+
+The runner writes one diagnostic line per pad to `logs\run.log`:
+
+```
+controller: "<name>" guid=<32-hex> bus=<usb|bluetooth> vid=<vvvv> pid=<pppp> layout=<xbox|playstation|switch|generic> source=<guid|mapping|type|default> dpad_swap=<yes|no> face_swap=<yes|no> paddles=unbound extras=unbound family="<family>"
+```
+
+If a pad is mapped wrongly, send that line. For an Edge or Elite, also say
+whether it was connected by USB or Bluetooth. For 8BitDo, say whether the pad
+was in Nintendo/Switch mode or standard/XInput mode.
 
 ### Button layout
 
@@ -97,7 +125,9 @@ the same layout on every pad:
 
 On a Switch Pro this means GameCube **A** is the south button printed **B**,
 and GameCube **B** is the east button printed **A**. That is intentional: the
-buttons stay in the same physical positions as an Xbox or PlayStation pad.
+buttons stay in the same physical positions as an Xbox or PlayStation pad. A
+Pro 2 in Nintendo or Switch mode behaves the same way. An 8BitDo Ultimate or 64
+in standard mode uses the Xbox-style positions.
 
 The profile is stored at:
 

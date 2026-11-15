@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Minimal RVZ (Dolphin compressed disc image) extractor.
+"""Native RVZ (Dolphin compressed disc image) reader and extractor.
 
 Implements the WIA-derived RVZ container documented in Dolphin's
 docs/WiaAndRvz.md and the GameCube raw-data path used by WIABlob.cpp.
@@ -9,14 +9,26 @@ supported (this is a GameCube disc).
 
 Usage:
     python tools/rvz_extract.py input.rvz output.iso
+    python tools/rvz_extract.py --extract input.rvz output-game-dir
+
+The second form reads the RVZ with random access and writes the same
+sys/ + files/ layout the ISO extractor produces. No temporary ISO is made.
 """
 from __future__ import annotations
 
+import bisect
+import hashlib
 import struct
 import sys
+from collections import OrderedDict
 from pathlib import Path
 
 import zstandard
+
+TOOLS = Path(__file__).resolve().parent
+sys.path.insert(0, str(TOOLS))
+
+from gcdisc import parse_fst, read_dol, walk  # noqa: E402
 
 RVZ_MAGIC = b"RVZ\x01"
 WIA_DISC_OFFSET = 0x48
@@ -135,7 +147,212 @@ def read_compressed_table(f, offset: int, size: int, compression: int, expect: i
     return data
 
 
+class RvzReader:
+    """Random-access reader over a GameCube RVZ disc.
+
+    Groups are decompressed on demand and a small LRU cache keeps sequential
+    file extraction from re-decompressing the same chunk.
+    """
+
+    def __init__(self, path: Path):
+        self.path = Path(path)
+        self.file = self.path.open("rb")
+        try:
+            head = self.file.read(0x48)
+            if len(head) != 0x48 or head[:4] != RVZ_MAGIC:
+                raise ValueError("not an RVZ file")
+            self.version, self.compat, header2_size = struct.unpack_from(">III", head, 4)
+            self.iso_size, file_size = struct.unpack_from(">QQ", head, 0x24)
+            if self.path.stat().st_size != file_size:
+                raise ValueError("RVZ file size does not match header")
+
+            h2 = self.file.read(header2_size)
+            if len(h2) != header2_size:
+                raise ValueError("RVZ header 2 truncated")
+            (disc_type, self.compression, self.compr_level,
+             self.chunk_size) = struct.unpack_from(">IIII", h2, 0)
+            if disc_type != 1:
+                raise NotImplementedError(f"disc_type {disc_type} is not GameCube")
+            if self.compression not in (COMPRESSION_NONE, COMPRESSION_ZSTD):
+                raise NotImplementedError(
+                    f"compression type {self.compression} is not supported")
+            if self.chunk_size % BLOCK_SIZE != 0:
+                raise ValueError("invalid chunk size")
+
+            self.disc_header = h2[0x10:0x10 + DISC_HEADER_SIZE]
+            p = 0x10 + DISC_HEADER_SIZE
+            n_part, part_t_size = struct.unpack_from(">II", h2, p)
+            p += 8
+            part_off, = struct.unpack_from(">Q", h2, p)
+            p += 8 + 20
+            n_raw, = struct.unpack_from(">I", h2, p)
+            p += 4
+            raw_off, = struct.unpack_from(">Q", h2, p)
+            p += 8
+            raw_size, = struct.unpack_from(">I", h2, p)
+            p += 4
+            n_groups, = struct.unpack_from(">I", h2, p)
+            p += 4
+            group_off, = struct.unpack_from(">Q", h2, p)
+            p += 8
+            group_size, = struct.unpack_from(">I", h2, p)
+
+            if n_part != 0:
+                raise NotImplementedError("Wii partition entries are not supported")
+
+            self.raw_table = read_compressed_table(
+                self.file, raw_off, raw_size, self.compression, n_raw * 24)
+            self.group_table = read_compressed_table(
+                self.file, group_off, group_size, self.compression, n_groups * 12)
+            self.n_groups = n_groups
+
+            self.entries = []
+            for i in range(n_raw):
+                data_off, data_size, group_index, groups = struct.unpack_from(
+                    ">QQII", self.raw_table, i * 24)
+                skipped = data_off % BLOCK_SIZE
+                aligned_off = data_off - skipped
+                aligned_size = data_size + skipped
+                self.entries.append({
+                    "data_off": data_off,
+                    "data_size": data_size,
+                    "group_index": group_index,
+                    "groups": groups,
+                    "aligned_off": aligned_off,
+                    "aligned_size": aligned_size,
+                })
+            self.entries.sort(key=lambda e: e["aligned_off"])
+            self.entry_starts = [e["aligned_off"] for e in self.entries]
+            self.cache: OrderedDict[tuple[int, int, int], bytes] = OrderedDict()
+            self.cache_limit = 8
+        except Exception:
+            self.file.close()
+            raise
+
+    def close(self):
+        self.file.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self.close()
+
+    def _entry_for(self, offset: int):
+        idx = bisect.bisect_right(self.entry_starts, offset) - 1
+        if idx < 0:
+            return None
+        entry = self.entries[idx]
+        if offset < entry["aligned_off"] + entry["aligned_size"]:
+            return entry
+        return None
+
+    def _load_group(self, total_group: int, this_chunk: int,
+                    chunk_offset: int) -> bytes:
+        key = (total_group, this_chunk, chunk_offset)
+        cached = self.cache.get(key)
+        if cached is not None:
+            self.cache.move_to_end(key)
+            return cached
+        if total_group >= self.n_groups:
+            raise ValueError("group index out of range")
+
+        file_off4, group_data_size, packed_size = struct.unpack_from(
+            ">III", self.group_table, total_group * 12)
+        compressed = bool(group_data_size & 0x80000000)
+        group_data_size &= 0x7FFFFFFF
+
+        if group_data_size == 0:
+            chunk = bytes(this_chunk)
+        else:
+            self.file.seek(file_off4 * 4)
+            raw = self.file.read(group_data_size)
+            if len(raw) != group_data_size:
+                raise ValueError("group data truncated")
+            if compressed:
+                dec = zstandard.ZstdDecompressor()
+                if packed_size:
+                    packed = dec.decompress(raw, max_output_size=packed_size)
+                    if len(packed) != packed_size:
+                        raise ValueError("packed group size mismatch")
+                    chunk = unpack_rvz(packed, this_chunk, chunk_offset)
+                else:
+                    chunk = dec.decompress(raw, max_output_size=this_chunk)
+                    if len(chunk) != this_chunk:
+                        raise ValueError(
+                            f"group {total_group}: got {len(chunk)} bytes, "
+                            f"expected {this_chunk}")
+            else:
+                chunk = raw
+                if packed_size:
+                    chunk = unpack_rvz(chunk, this_chunk, chunk_offset)
+                if len(chunk) != this_chunk:
+                    raise ValueError("uncompressed group size mismatch")
+
+        if len(chunk) < this_chunk:
+            chunk += bytes(this_chunk - len(chunk))
+        self.cache[key] = chunk
+        if len(self.cache) > self.cache_limit:
+            self.cache.popitem(last=False)
+        return chunk
+
+    def read_at(self, offset: int, size: int) -> bytes:
+        if offset < 0 or size < 0 or offset + size > self.iso_size:
+            raise ValueError("read outside the disc")
+        out = bytearray()
+
+        if offset < DISC_HEADER_SIZE:
+            take = min(size, DISC_HEADER_SIZE - offset)
+            out += self.disc_header[offset:offset + take]
+            offset += take
+            size -= take
+            if size == 0:
+                return bytes(out)
+
+        while size:
+            entry = self._entry_for(offset)
+            if entry is None:
+                next_start = self.iso_size
+                idx = bisect.bisect_right(self.entry_starts, offset)
+                if idx < len(self.entry_starts):
+                    next_start = self.entry_starts[idx]
+                take = next_start - offset if next_start > offset else size
+                take = min(size, take)
+                out += bytes(take)
+                offset += take
+                size -= take
+                continue
+
+            relative = offset - entry["aligned_off"]
+            chunk_index = relative // self.chunk_size
+            chunk_offset = relative % self.chunk_size
+            this_chunk = min(
+                self.chunk_size,
+                entry["aligned_size"] - chunk_index * self.chunk_size)
+            if this_chunk <= 0 or chunk_index >= entry["groups"]:
+                take = min(
+                    size,
+                    entry["aligned_off"] + entry["aligned_size"] - offset)
+                if take <= 0:
+                    take = size
+                out += bytes(take)
+                offset += take
+                size -= take
+                continue
+
+            total_group = entry["group_index"] + chunk_index
+            chunk = self._load_group(
+                total_group, this_chunk, chunk_index * self.chunk_size)
+            take = min(size, this_chunk - chunk_offset)
+            out += chunk[chunk_offset:chunk_offset + take]
+            offset += take
+            size -= take
+
+        return bytes(out)
+
+
 def extract(rvz_path: Path, iso_path: Path):
+    """Legacy whole-disc mode: write a byte-identical ISO."""
     with rvz_path.open("rb") as f:
         head = f.read(0x48)
         if len(head) != 0x48 or head[:4] != RVZ_MAGIC:
@@ -251,12 +468,86 @@ def extract(rvz_path: Path, iso_path: Path):
     print(f"Wrote {iso_path} ({iso_path.stat().st_size:,} bytes)")
 
 
+def extract_game_dir(rvz_path: Path, out_dir: Path):
+    """Read the RVZ natively and write the ISO-equivalent sys/ + files/ tree."""
+    with RvzReader(rvz_path) as reader:
+        head = reader.read_at(0, 0x2440)
+        if len(head) != 0x2440:
+            raise ValueError("disc header truncated")
+        magic = struct.unpack_from(">I", head, 0x1C)[0]
+        if magic != 0xC2339F3D:
+            raise ValueError("not a GameCube disc")
+
+        sys_dir = out_dir / "sys"
+        files_dir = out_dir / "files"
+        sys_dir.mkdir(parents=True, exist_ok=True)
+        files_dir.mkdir(parents=True, exist_ok=True)
+
+        (sys_dir / "boot.bin").write_bytes(head[0:0x440])
+        (sys_dir / "bi2.bin").write_bytes(head[0x440:0x2440])
+
+        app = reader.read_at(0x2440, 0x20)
+        app_total = 0x20 + struct.unpack_from(">I", app, 0x14)[0] + struct.unpack_from(">I", app, 0x18)[0]
+        (sys_dir / "apploader.img").write_bytes(reader.read_at(0x2440, app_total))
+
+        dol, dol_blob = read_dol(reader)
+        (sys_dir / "main.dol").write_bytes(dol_blob)
+
+        fst_root, fst_off, fst_size = parse_fst(reader)
+        (sys_dir / "fst.bin").write_bytes(reader.read_at(fst_off, fst_size))
+
+        files = []
+        for path, entry in walk(fst_root):
+            if entry.is_dir:
+                continue
+            files.append((entry.offset, entry.size, path))
+        files.sort(key=lambda item: (item[0], item[2]))
+
+        total = sum(size for _, size, _ in files)
+        done = 0
+        last_percent = -1
+        for offset, size, path in files:
+            dest = files_dir / path
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            if not dest.resolve().is_relative_to(files_dir.resolve()):
+                raise ValueError(f"FST path escapes the output folder: {path}")
+            with dest.open("wb") as out:
+                pos = offset
+                remaining = size
+                while remaining > 0:
+                    chunk = reader.read_at(pos, min(4 * 1024 * 1024, remaining))
+                    if not chunk:
+                        raise ValueError(f"truncated file {path}")
+                    out.write(chunk)
+                    pos += len(chunk)
+                    remaining -= len(chunk)
+            done += size
+            percent = done * 100 // max(1, total)
+            if percent // 10 != last_percent // 10:
+                last_percent = percent
+                print(f"\r  files {percent:3d}%", end="", flush=True)
+
+        print()
+        dol_hash = hashlib.sha256((sys_dir / "main.dol").read_bytes()).hexdigest()
+        print(f"Game root:   {out_dir}")
+        print(f"boot.bin     {0x440} bytes")
+        print(f"bi2.bin      {0x2000} bytes")
+        print(f"apploader.img {app_total} bytes")
+        print(f"main.dol     {len(dol_blob)} bytes, entry {dol.entry_point:#010x}")
+        print(f"main.dol SHA-256: {dol_hash}")
+        print(f"fst.bin      {fst_size} bytes at {fst_off:#x}")
+        print(f"files/       {len(files)} files, {total:,} bytes")
+
+
 def main(argv: list[str]) -> int:
-    if len(argv) != 3:
-        print(__doc__.strip())
-        return 2
-    extract(Path(argv[1]), Path(argv[2]))
-    return 0
+    if len(argv) == 4 and argv[1] == "--extract":
+        extract_game_dir(Path(argv[2]), Path(argv[3]))
+        return 0
+    if len(argv) == 3:
+        extract(Path(argv[1]), Path(argv[2]))
+        return 0
+    print(__doc__.strip())
+    return 2
 
 
 if __name__ == "__main__":

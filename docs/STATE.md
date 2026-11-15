@@ -1,6 +1,6 @@
 # Project state
 
-Updated: 2026-11-14
+Updated: 2026-11-15
 
 ## Latest verified result
 
@@ -30,6 +30,32 @@ The recompiled game boots to playable gameplay on Windows:
   size 26,080,740 bytes, SHA-256
   `9AA57FE8DD09845B3FF5822340D38B839346AA2E676050A66E1B20B0092F7789`.
   No game data.
+- Player release v0.1.0 staged and verified from `dist/`: native RVZ import,
+  DualSense Edge / Xbox Elite Series 1-2 GUID support, and the 8BitDo
+  Nintendo-layout fix. Zip size 26,123,520 bytes, SHA-256
+  `2C2515867A50F1D453D91D1B396B17017A6CCFE86A91EA2F965293EB53443C01`.
+  Stage contains 2,662 files and no game data. RVZ extraction matches the
+  ISO-derived tree (861 files, 883,595,233 bytes, manifest
+  `1A74BCC722A087D7A0F12AF2859C8BB5C1D9CEA81026D968D351CC746A6F781B`).
+  Boot smoke on the hidden desktop reached `app booted from bootrom` and
+  `StartZAxisMovie`.
+- Native RVZ import (shipping in v0.1.0): the launcher detects
+  `RVZ\x01` and calls `rvz_extract.exe --extract` to write the same `sys/` +
+  `files/` tree as the ISO path, with no temporary ISO. `make_game_dir.py`,
+  `gcdisc.py` and `extract_dol.py` also accept RVZ. Acceptance hashes are in
+  [`notes/07-rvz-native.md`](notes/07-rvz-native.md).
+- Controller batch (shipping in v0.1.0): GUID-level DualSense Edge
+  (054C:0DF2) and Xbox Elite Series 1/2 (045E:02E3/0B00/0B05/0B22) detection;
+  standard DualSense/Xbox layouts; Edge paddles/Fn and Elite paddles unbound;
+  offline layout test passes. See
+  [`notes/08-edge-elite-controllers.md`](notes/08-edge-elite-controllers.md).
+- 8BitDo Nintendo-layout fix (shipping in v0.1.0): the runner reads the live SDL
+  mapping per device and selects the Switch layout when `a > b`, so a Pro 2 in
+  Nintendo or Switch mode gets swapped A/B/X/Y while the Ultimate and 64 stay
+  standard. Reversed D-pad bindings are corrected. Default profiles migrate;
+  a custom profile is preserved for the connected pad; the manual Nintendo
+  override remains. Layout test 62/62 and launcher self-test 132/132. See
+  [`notes/09-8bitdo-nintendo-mapping.md`](notes/09-8bitdo-nintendo-mapping.md).
 - 16:9 widescreen and the Hor+ widescreen hack are fixed in v0.0.2. The v0.0.1
   runner was a stale binary that ignored `aspect`/`widescreen_hack`; the new
   runner is built from the current ModernGekko source. See
@@ -153,7 +179,7 @@ menu if those values need checking.
    save/load, and at least one full level.
 4. **SMC review**: inspect the 100 `generated_smc.txt` ranges; only patch sites
    that actually write executable memory at runtime.
-5. **Packaging**: done for v0.0.4. The launcher accepts ISO, RVZ or an extracted
+5. **Packaging**: done for v0.1.0. The launcher accepts ISO, RVZ or an extracted
    folder, verifies `GILE51`/DOL hash, extracts to
    `%LOCALAPPDATA%\AggressiveInlineRecomp`, and starts the bundled module.
    The release ships the full `defaults/GCPadNew*.ini` preset set, branded
@@ -204,7 +230,7 @@ tools\build_msvc.bat
 tools\run_dev.bat
 
 # Build the player release (stage + zip)
-powershell -ExecutionPolicy Bypass -File tools\make_release_gile.ps1 -Version 0.0.4
+powershell -ExecutionPolicy Bypass -File tools\make_release_gile.ps1 -Version 0.1.0
 
 # Headless automation screenshots
 powershell -ExecutionPolicy Bypass -File tools\auto_probe.ps1 -Seconds 50 -Shots 10,25,45

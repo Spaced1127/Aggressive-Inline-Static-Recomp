@@ -5,7 +5,7 @@
   "repo": "Spaced1127/Aggressive-Inline-Static-Recomp",
   "game": {
     "kind": "iso_or_folder",
-    "label": "Your copy of Aggressive Inline (USA, GILE51): the disc image (.iso or .rvz) or the extracted folder containing sys/main.dol and files/.",
+    "label": "Your copy of Aggressive Inline (USA, GILE51): the disc image (.iso or .rvz) or the extracted folder containing sys/main.dol and files/. RVZ is read directly; no conversion is needed.",
     "check": {
       "file": "sys/main.dol"
     },

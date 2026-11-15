@@ -17,11 +17,17 @@ The game boots and reaches playable gameplay:
   with working text and 3D background scenes.
 - The Tutorial level loads and renders: world geometry, reflections, skinned
   player character, HUD, and tutorial overlays.
-- Controller input works with DualSense, DualShock, Xbox, Switch Pro, Steam and
-  other SDL pads. The game auto-detects the first connected SDL pad and falls
-  back to it when an existing profile names a different device, so
-  RecompLauncher installs need no controller setup. The CONTROLLER page remains
-  for choosing a specific pad when several are connected.
+- Controller input works with DualSense, DualSense Edge, DualShock, Xbox,
+  Xbox Elite Series 1/2, Switch Pro, Steam, 8BitDo and other SDL pads. The game
+  auto-detects the first connected SDL pad and falls back to it when an existing
+  profile names a different device, so RecompLauncher installs need no
+  controller setup. The CONTROLLER page remains for choosing a specific pad
+  when several are connected. Edge/Elite paddles and Fn buttons are
+  intentionally unbound; see
+  [`docs/notes/08-edge-elite-controllers.md`](docs/notes/08-edge-elite-controllers.md).
+  8BitDo Nintendo-mode pads are detected from their live SDL mapping, so A/B and
+  X/Y stay on the printed buttons; Ultimate and 64 keep the standard layout. See
+  [`docs/notes/09-8bitdo-nintendo-mapping.md`](docs/notes/09-8bitdo-nintendo-mapping.md).
 - New installs default to 16:9 at the closest 16:9 resolution to the desktop
   (2560x1440 on a 1440p display). The selected resolution sizes the game window
   and Fullscreen windowed fills the monitor.
@@ -33,7 +39,7 @@ The game boots and reaches playable gameplay:
 - No crash or unimplemented-stub abort has been observed through the first
   level load.
 - A standalone player release is staged in
-  `dist/AggressiveInline-Recomp-v0.0.4-Windows-x64/` with a WinForms launcher,
+  `dist/AggressiveInline-Recomp-v0.1.0-Windows-x64/` with a WinForms launcher,
   direct ISO/RVZ import, the Clang module and no game data.
 - 16:9 widescreen and the Hor+ widescreen hack work in v0.0.2. The v0.0.1
   runner was a stale binary that ignored the aspect settings; the new runner is
@@ -70,49 +76,50 @@ performance validation is ongoing.
 ## Quick start
 
 ```powershell
-# 1. RVZ -> ISO (skip if you already have an ISO)
-python tools\rvz_extract.py "Aggressive Inline (USA).rvz" work\disc\game.iso
+# 1. Extract the game root and DOL directly from ISO or RVZ.
+#    No RVZ -> ISO conversion is needed.
+python tools\make_game_dir.py "Aggressive Inline (USA).rvz" work\game
+python tools\extract_dol.py "Aggressive Inline (USA).rvz" work\disc\main.dol
 
-# 2. Extract the DOL and the disc tree
-python tools\extract_dol.py work\disc\game.iso work\disc\main.dol
-H:\Projects\SB-RFD\build\dolrecomp\dolrecomp.exe extract work\disc\game.iso work\game
-
-# 3. Recompile + build a module (Clang is recommended; MSVC also works)
+# 2. Recompile + build a module (Clang is recommended; MSVC also works)
 tools\build_clang.bat
 tools\build_msvc.bat
 
-# 4. Copy the chosen module back into the project
+# 3. Copy the chosen module back into the project
 #    (the build scripts write to C:\gile to stay under MAX_PATH)
 copy /Y C:\gile\modules-clang\GILE51\<cache>\gGILE51_recomp.dll build\gGILE51_recomp_clang.dll
 copy /Y C:\gile\modules\GILE51\<cache>\gGILE51_recomp.dll       build\gGILE51_recomp.dll
 
-# 5. Dev run (direct runner, Clang module)
+# 4. Dev run (direct runner, Clang module)
 tools\run_dev.bat
 
-# 6. Build the player release
-powershell -ExecutionPolicy Bypass -File tools\make_release_gile.ps1 -Version 0.0.4
+# 5. Build the player release
+powershell -ExecutionPolicy Bypass -File tools\make_release_gile.ps1 -Version 0.1.0
 ```
 
 `tools\run_dev.bat` starts the game in a window with the profile in
 `work\user\Config\GCPadNew.ini`. The release launcher has a **CONTROLLER** page
-with ready-made DualSense, DualShock, Xbox, Switch Pro, Steam and 8BitDo
-layouts, plus an exact "Read from log" device picker.
+with ready-made DualSense, DualSense Edge, DualShock, Xbox, Xbox Elite,
+Switch Pro, Steam and 8BitDo layouts, plus an exact "Read from log" device
+picker.
 
 ## Release
 
 `tools\make_release_gile.ps1` builds:
 
 ```
-dist/AggressiveInline-Recomp-v0.0.4-Windows-x64/
-dist/AggressiveInline-Recomp-v0.0.4-Windows-x64.zip
+dist/AggressiveInline-Recomp-v0.1.0-Windows-x64/
+dist/AggressiveInline-Recomp-v0.1.0-Windows-x64.zip
 ```
 
 The stage contains `gile-launcher.exe`, `gile.exe`, the Clang module,
 `rvz_extract.exe`, `Sys/`, the full `defaults/GCPadNew*.ini` preset set,
-`LICENSES/`, `recomplauncher.json`, the player docs and an empty `game/` folder. The
-launcher accepts an ISO, an RVZ or an extracted folder, verifies `GILE51` and
-the DOL SHA-256, extracts to `%LOCALAPPDATA%\AggressiveInlineRecomp\game`, and
-starts the game with the bundled module.
+`LICENSES/`, `recomplauncher.json`, the player docs and an empty `game/` folder.
+The launcher accepts an ISO, an RVZ or an extracted folder. RVZ is decoded
+natively and written straight to the same `sys/` + `files/` layout as the ISO
+path, with no temporary ISO. It verifies `GILE51` and the DOL SHA-256, extracts
+to `%LOCALAPPDATA%\AggressiveInlineRecomp\game`, and starts the game with the
+bundled module.
 
 The v0.0.2 widescreen root cause and packaging results are recorded in
 [`docs/notes/04-widescreen.md`](docs/notes/04-widescreen.md). The v0.0.3
@@ -120,6 +127,12 @@ controller layouts, exact SDL matching and packaging results are in
 [`docs/notes/05-controllers.md`](docs/notes/05-controllers.md). The v0.0.4
 automatic SDL fallback, Aggressive Inline branding and 16:9 window sizing are
 in [`docs/notes/06-controller-runtime-and-resolution.md`](docs/notes/06-controller-runtime-and-resolution.md).
+The native RVZ import path and acceptance hashes are in
+[`docs/notes/07-rvz-native.md`](docs/notes/07-rvz-native.md).
+Edge/Elite GUID support is in
+[`docs/notes/08-edge-elite-controllers.md`](docs/notes/08-edge-elite-controllers.md),
+and the 8BitDo Nintendo-mapping fix is in
+[`docs/notes/09-8bitdo-nintendo-mapping.md`](docs/notes/09-8bitdo-nintendo-mapping.md).
 The earlier v0.0.1 packaging notes remain in
 [`docs/notes/02-release.md`](docs/notes/02-release.md).
 

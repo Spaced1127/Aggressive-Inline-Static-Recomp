@@ -67,6 +67,14 @@ internal static class ControllerSelfTest
             "Switch Pro mapping");
         Check((string)presetFor.Invoke(null, new object[] { "SDL/0/DualSense Wireless Controller" }) == "dualsense",
             "DualSense mapping");
+        Check((string)presetFor.Invoke(null, new object[] { "SDL/0/DualSense Edge Wireless Controller" }) == "dualsense-edge",
+            "DualSense Edge mapping");
+        Check((string)presetFor.Invoke(null, new object[] { "SDL/0/Xbox One Elite Controller" }) == "xbox-elite",
+            "Xbox Elite Series 1 mapping");
+        Check((string)presetFor.Invoke(null, new object[] { "SDL/0/Xbox One Elite 2 Controller" }) == "xbox-elite2",
+            "Xbox Elite Series 2 mapping");
+        Check((string)presetFor.Invoke(null, new object[] { "SDL/0/Xbox Elite Wireless Controller" }) == "xbox-elite2",
+            "Xbox Elite Wireless mapping");
         Check((string)presetFor.Invoke(null, new object[] { "SDL/0/8BitDo Pro 2" }) == "8bitdo",
             "8BitDo mapping");
         Check((string)presetFor.Invoke(null, new object[] { "SDL/0/Something Else" }) == "generic",
@@ -76,6 +84,14 @@ internal static class ControllerSelfTest
               "SDL/0/Xbox Wireless Controller", "Xbox default name");
         Check((string)presetDevice.Invoke(null, new object[] { "switch-pro" }) ==
               "SDL/0/Nintendo Switch Pro Controller", "Switch default name");
+        Check((string)presetDevice.Invoke(null, new object[] { "dualsense-edge" }) ==
+              "SDL/0/DualSense Edge Wireless Controller", "DualSense Edge default name");
+        Check((string)presetDevice.Invoke(null, new object[] { "xbox-elite" }) ==
+              "SDL/0/Xbox One Elite Controller", "Xbox Elite 1 default name");
+        Check((string)presetDevice.Invoke(null, new object[] { "xbox-elite2" }) ==
+              "SDL/0/Xbox One Elite 2 Controller", "Xbox Elite 2 default name");
+        Check((string)presetDevice.Invoke(null, new object[] { "8bitdo-nintendo" }) ==
+              "SDL/0/8BitDo Pro 2", "8BitDo Nintendo default name");
 
         // No profile yet, log says Xbox: EnsureConfig should create an Xbox
         // profile with the exact detected name, not the DualSense default.
@@ -102,14 +118,15 @@ internal static class ControllerSelfTest
         string switchText = File.ReadAllText(switchProfile);
         Check(switchText.Contains("Device = SDL/1/Nintendo Switch Pro Controller"),
             "custom SDL id preserved");
-        Check(switchText.Contains("Buttons/A = `Button A`"), "switch mapping kept");
+        Check(switchText.Contains("Buttons/A = `Button B`"), "switch mapping kept");
 
         // Every shipped preset must exist and carry the full mapping.
         string[] presets =
         {
-            "dualsense", "dualshock4", "dualshock3", "xbox", "xbox-series",
-            "xbox-one", "xbox360", "xbox-generic", "switch-pro", "steam",
-            "8bitdo", "generic"
+            "dualsense", "dualsense-edge", "dualshock4", "dualshock3",
+            "xbox", "xbox-series", "xbox-one", "xbox360", "xbox-elite",
+            "xbox-elite2", "xbox-generic", "switch-pro", "steam", "8bitdo",
+            "8bitdo-nintendo", "generic"
         };
         foreach (string preset in presets)
         {
@@ -118,8 +135,12 @@ internal static class ControllerSelfTest
             if (!File.Exists(path))
                 continue;
             string text = File.ReadAllText(path);
+            bool nintendo = preset == "switch-pro" || preset == "8bitdo-nintendo";
             Check(text.Contains("Device = SDL/0/"), "preset device: " + preset);
-            Check(text.Contains("Buttons/A = `Button A`"), "preset mapping: " + preset);
+            Check(text.Contains(nintendo ? "Buttons/A = `Button B`" : "Buttons/A = `Button A`"),
+                "preset mapping: " + preset);
+            Check(text.Contains(nintendo ? "Buttons/B = `Button A`" : "Buttons/B = `Button B`"),
+                "preset buttons: " + preset);
             Check(text.Contains("Triggers/R-Analog = `Trigger R`"), "preset triggers: " + preset);
         }
 

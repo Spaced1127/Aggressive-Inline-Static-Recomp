@@ -84,7 +84,7 @@ internal static class Program
             else if (a == "--window-mode")
                 o.WindowMode = Next(args, ref i).ToLowerInvariant();
             else if (!a.StartsWith("-") && string.IsNullOrEmpty(o.Game))
-                o.Game = a; // dragging an ISO/folder onto the launcher
+                o.Game = a; // dragging an ISO/RVZ/folder onto the launcher
             else
                 o.Pass.Add(a);
         }
@@ -107,7 +107,7 @@ internal static class Program
         if (File.Exists(o.Game))
             return PrepareImage(o);
 
-        Error("That path doesn't exist. Pick your .iso or the extracted game folder.");
+        Error("That path doesn't exist. Pick your .iso, .rvz or extracted game folder.");
         return 2;
     }
 
@@ -116,7 +116,7 @@ internal static class Program
         string dol = Path.Combine(folder, "sys", "main.dol");
         if (!File.Exists(dol))
         {
-            Error("That folder doesn't contain sys/main.dol. Pick the extracted game folder, or the .iso.");
+            Error("That folder doesn't contain sys/main.dol. Pick the extracted game folder, or the .iso/.rvz.");
             return 2;
         }
 
@@ -131,100 +131,132 @@ internal static class Program
         return 0;
     }
 
+    private static bool IsRvzImage(string path)
+    {
+        try
+        {
+            using (FileStream fs = File.OpenRead(path))
+            {
+                if (fs.Length < 4)
+                    return false;
+                byte[] magic = new byte[4];
+                int read = fs.Read(magic, 0, 4);
+                return read == 4 && magic[0] == (byte)'R' && magic[1] == (byte)'V' &&
+                       magic[2] == (byte)'Z' && magic[3] == 1;
+            }
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private static int PrepareImage(Options o)
     {
         string ext = Path.GetExtension(o.Game).ToLowerInvariant();
-        string sourcePath = o.Game;
-        string tempIso = null;
-        if (ext == ".rvz" || ext == ".wia")
+        bool rvz = IsRvzImage(o.Game) || ext == ".rvz";
+        if (rvz)
+            return PrepareRvz(o);
+
+        if (ext == ".wia" || ext == ".gcz" || ext == ".ciso" || ext == ".wbfs")
         {
-            tempIso = Path.Combine(Path.GetTempPath(), "gile-" + Guid.NewGuid().ToString("N") + ".iso");
-            Progress(0.01, "Decompressing the RVZ image (one-time, about a minute)");
-            try
-            {
-                RunRvzExtract(o.Game, tempIso);
-            }
-            catch
-            {
-                try { File.Delete(tempIso); } catch { }
-                throw;
-            }
-            sourcePath = tempIso;
-        }
-        else if (ext == ".gcz" || ext == ".ciso" || ext == ".wbfs")
-        {
-            Error("That's a compressed " + ext + " image. In Dolphin, right-click the game, " +
-                  "Convert File, ISO, then pick the .iso or .rvz here.");
+            Error("That's a compressed " + ext + " image. Use an .iso or .rvz file.");
             return 2;
         }
 
         string dest = Path.Combine(o.UserDir, "game");
-        try
+        using (FileStream fs = File.OpenRead(o.Game))
         {
-            using (FileStream fs = File.OpenRead(sourcePath))
+            byte[] head = ReadAt(fs, 0, 0x2440);
+            uint magic = Be32(head, 0x1C);
+            string id = Encoding.ASCII.GetString(head, 0, 6);
+            if (magic != GcMagic || id != GameId)
             {
-                byte[] head = ReadAt(fs, 0, 0x2440);
-                uint magic = Be32(head, 0x1C);
-                string id = Encoding.ASCII.GetString(head, 0, 6);
-                if (magic != GcMagic || id != GameId)
-                {
-                    Error("That doesn't look like Aggressive Inline (USA). " +
-                          "Its GameCube ID is " + id + ".");
-                    return 2;
-                }
+                Error("That doesn't look like Aggressive Inline (USA). " +
+                      "Its GameCube ID is " + id + ".");
+                return 2;
+            }
 
-                Progress(0.02, "Reading the disc header");
-                try
-                {
-                    if (Directory.Exists(dest))
-                        Directory.Delete(dest, true);
-                }
-                catch
-                {
-                    // A previous extraction that can't be removed is replaced file by file below.
-                }
-                Extract(fs, head, dest);
-            }
-        }
-        finally
-        {
-            if (tempIso != null)
+            Progress(0.02, "Reading the disc header");
+            try
             {
-                try { File.Delete(tempIso); } catch { }
+                if (Directory.Exists(dest))
+                    Directory.Delete(dest, true);
             }
+            catch
+            {
+                // A previous extraction that can't be removed is replaced file by file below.
+            }
+            Extract(fs, head, dest);
         }
 
+        WriteSourceStamp(o.Game, dest);
+        Progress(1.0, "Game files ready");
+        return 0;
+    }
+
+    private static int PrepareRvz(Options o)
+    {
+        string dest = Path.Combine(o.UserDir, "game");
+        Progress(0.01, "Extracting the RVZ image directly");
         try
         {
-            File.WriteAllText(Path.Combine(dest, "source.txt"), SourceStamp(o.Game));
+            if (Directory.Exists(dest))
+                Directory.Delete(dest, true);
+        }
+        catch
+        {
+            // The extractor overwrites files in place if the folder is locked.
+        }
+
+        RunRvzExtractToFolder(o.Game, dest);
+
+        string dol = Path.Combine(dest, "sys", "main.dol");
+        if (!File.Exists(dol))
+            throw new InvalidDataException("The RVZ extractor did not produce sys/main.dol.");
+        string hash = Sha256(dol);
+        if (!hash.Equals(KnownDolSha256, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException(
+                "The extracted main.dol isn't the USA build this port needs (SHA-256 " + hash + ").");
+
+        WriteSourceStamp(o.Game, dest);
+        Progress(1.0, "Game files ready");
+        return 0;
+    }
+
+    private static void WriteSourceStamp(string game, string dest)
+    {
+        try
+        {
+            File.WriteAllText(Path.Combine(dest, "source.txt"), SourceStamp(game));
         }
         catch
         {
             // The marker only skips re-extraction; a failed write just means it runs again.
         }
-
-        Progress(1.0, "Game files ready");
-        return 0;
     }
 
-    private static void RunRvzExtract(string input, string output)
+    private static void RunRvzExtractToFolder(string input, string output)
     {
         string tool = Path.Combine(AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\'), "rvz_extract.exe");
         if (!File.Exists(tool))
             throw new InvalidOperationException("rvz_extract.exe is missing from the install folder.");
 
-        ProcessStartInfo psi = new ProcessStartInfo(tool, "\"" + input + "\" \"" + output + "\"");
+        ProcessStartInfo psi = new ProcessStartInfo(
+            tool, "--extract \"" + input + "\" \"" + output + "\"");
         psi.UseShellExecute = false;
         psi.CreateNoWindow = true;
+        psi.RedirectStandardOutput = true;
         psi.RedirectStandardError = true;
         psi.WorkingDirectory = Path.GetDirectoryName(tool);
         using (Process process = Process.Start(psi))
         {
+            process.StandardOutput.ReadToEnd();
             string error = process.StandardError.ReadToEnd();
             process.WaitForExit();
             if (process.ExitCode != 0)
                 throw new InvalidOperationException(
-                    "The RVZ image could not be decompressed." +
+                    "The RVZ image could not be extracted." +
                     (string.IsNullOrEmpty(error) ? string.Empty : " " + error.Trim()));
         }
     }
@@ -655,7 +687,10 @@ internal static class Program
                 "volume=100" + Environment.NewLine +
                 "aspect=wide" + Environment.NewLine +
                 "widescreen_hack=true" + Environment.NewLine +
-                "efb_access=true" + Environment.NewLine);
+                "efb_access=true" + Environment.NewLine +
+                Environment.NewLine +
+                "[Input]" + Environment.NewLine +
+                "controller_profile=auto" + Environment.NewLine);
         }
         else
         {
@@ -764,7 +799,10 @@ internal static class Program
         switch (preset)
         {
             case "dualsense": return "SDL/0/DualSense Wireless Controller";
+            case "dualsense-edge": return "SDL/0/DualSense Edge Wireless Controller";
             case "xbox": return "SDL/0/Xbox Wireless Controller";
+            case "xbox-elite": return "SDL/0/Xbox One Elite Controller";
+            case "xbox-elite2": return "SDL/0/Xbox One Elite 2 Controller";
             case "xbox-series": return "SDL/0/Xbox Series X Controller";
             case "xbox-one": return "SDL/0/Xbox One Controller";
             case "xbox360": return "SDL/0/Xbox 360 Controller";
@@ -773,6 +811,7 @@ internal static class Program
             case "switch-pro": return "SDL/0/Nintendo Switch Pro Controller";
             case "steam": return "SDL/0/Steam Controller";
             case "8bitdo": return "SDL/0/8BitDo Pro 2";
+            case "8bitdo-nintendo": return "SDL/0/8BitDo Pro 2";
             case "xbox-generic": return "SDL/0/Xbox Controller";
             case "generic": return "SDL/0/Gamepad";
             default: return null;
@@ -784,6 +823,13 @@ internal static class Program
         if (string.IsNullOrEmpty(device))
             return "dualsense";
         string d = device.ToLowerInvariant();
+        if (d.Contains("dualsense edge"))
+            return "dualsense-edge";
+        if (d.Contains("elite 2") || d.Contains("elite series 2") ||
+            d.Contains("xbox elite wireless"))
+            return "xbox-elite2";
+        if (d.Contains("elite"))
+            return "xbox-elite";
         if (d.Contains("xbox series"))
             return "xbox-series";
         if (d.Contains("xbox one"))
@@ -1724,10 +1770,10 @@ internal static class Program
 
             Button browseFolder = MakeButton(gameCard, "Browse folder", 18, 172, 196, 30);
             browseFolder.Click += delegate { BrowseFolder(); };
-            Button browseIso = MakeButton(gameCard, "Browse ISO...", 226, 172, 196, 30);
+            Button browseIso = MakeButton(gameCard, "Browse ISO / RVZ...", 226, 172, 196, 30);
             browseIso.Click += delegate { BrowseIso(); };
 
-            MakeLabel(gameCard, "An ISO is extracted and verified on first play.",
+            MakeLabel(gameCard, "An ISO or RVZ is extracted and verified on first play.",
                       18, 212, 404, 20, TextDim, 8.5F, FontStyle.Regular);
 
             MakeLabel(gameCard, "Disc ID", 18, 252, 110, 18, TextDim, 8.5F, FontStyle.Regular);
@@ -1935,15 +1981,19 @@ internal static class Program
 
             _controllerPreset = MakeCombo(card, 18, 106, 320);
             _controllerPreset.Items.Add(new Choice("DualSense (PS5)", "dualsense"));
+            _controllerPreset.Items.Add(new Choice("DualSense Edge", "dualsense-edge"));
             _controllerPreset.Items.Add(new Choice("Xbox Wireless", "xbox"));
             _controllerPreset.Items.Add(new Choice("Xbox Series X/S", "xbox-series"));
             _controllerPreset.Items.Add(new Choice("Xbox One", "xbox-one"));
             _controllerPreset.Items.Add(new Choice("Xbox 360", "xbox360"));
+            _controllerPreset.Items.Add(new Choice("Xbox Elite Series 1", "xbox-elite"));
+            _controllerPreset.Items.Add(new Choice("Xbox Elite Series 2", "xbox-elite2"));
             _controllerPreset.Items.Add(new Choice("DualShock 4 (PS4)", "dualshock4"));
             _controllerPreset.Items.Add(new Choice("DualShock 3 (PS3)", "dualshock3"));
             _controllerPreset.Items.Add(new Choice("Switch Pro", "switch-pro"));
             _controllerPreset.Items.Add(new Choice("Steam Controller", "steam"));
             _controllerPreset.Items.Add(new Choice("8BitDo (Xbox-style)", "8bitdo"));
+            _controllerPreset.Items.Add(new Choice("8BitDo (Nintendo mode)", "8bitdo-nintendo"));
             _controllerPreset.Items.Add(new Choice("Xbox (generic)", "xbox-generic"));
             _controllerPreset.Items.Add(new Choice("Generic / other SDL pad", "generic"));
             _controllerPreset.Items.Add(new Choice("Custom (edit file)", "custom"));
@@ -1992,7 +2042,20 @@ internal static class Program
                 return;
             }
             PopulateControllerDevices(device);
-            SelectChoice(_controllerPreset, ControllerPresetForDevice(device));
+            string preset = ControllerPresetForDevice(device);
+            string profileText = string.Empty;
+            try { profileText = File.ReadAllText(path); }
+            catch { }
+            if (profileText.Contains("Buttons/A = `Button B`"))
+            {
+                string lower = device.ToLowerInvariant();
+                if (lower.Contains("8bitdo"))
+                    preset = "8bitdo-nintendo";
+                else if (lower.Contains("switch") || lower.Contains("joy-con") ||
+                         lower.Contains("joycon") || lower.Contains("nintendo"))
+                    preset = "switch-pro";
+            }
+            SelectChoice(_controllerPreset, preset);
             // Selecting the layout fills its common device name; put the real one back.
             _controllerDevice.Text = device;
         }
@@ -2057,6 +2120,8 @@ internal static class Program
                     File.Copy(target, backup, true);
                 }
                 WriteControllerProfile(template, target, device);
+                SetIniKey(Path.Combine(_userDir, "config.ini"),
+                          "Input", "controller_profile", "manual");
                 _controllerDevice.Text = device;
                 _controllerApplyStatus.Text = "Applied " + SelectedLabel(_controllerPreset) +
                     " for " + device + ". Restart the game if it is running.";
@@ -2205,8 +2270,11 @@ internal static class Program
                 else
                 {
                     string bundledIso = Path.Combine(_appDir, "game.iso");
+                    string bundledRvz = Path.Combine(_appDir, "game.rvz");
                     if (File.Exists(bundledIso))
                         game = bundledIso;
+                    else if (File.Exists(bundledRvz))
+                        game = bundledRvz;
                 }
             }
             _gameBox.Text = game;
@@ -2361,7 +2429,8 @@ internal static class Program
             else if (File.Exists(game))
             {
                 string ext = Path.GetExtension(game).ToLowerInvariant();
-                ready = ext == ".iso" || ext == ".gcm";
+                ready = ext == ".iso" || ext == ".gcm" || ext == ".rvz" ||
+                        IsRvzImage(game);
             }
 
             _badge.SetState(ready ? "GILE51  \u2022  READY" : "NO GAME IMPORTED",
@@ -2407,7 +2476,7 @@ internal static class Program
             using (OpenFileDialog dialog = new OpenFileDialog())
             {
                 dialog.Title = "Pick your Aggressive Inline (USA) disc image";
-                dialog.Filter = "GameCube disc image (*.iso)|*.iso|All files (*.*)|*.*";
+                dialog.Filter = "GameCube disc image (*.iso;*.rvz;*.gcm)|*.iso;*.rvz;*.gcm|All files (*.*)|*.*";
                 if (dialog.ShowDialog(this) == DialogResult.OK)
                     _gameBox.Text = dialog.FileName;
             }
@@ -2463,7 +2532,7 @@ internal static class Program
             string game = _gameBox.Text.Trim();
             if (game.Length == 0)
             {
-                MessageBox.Show(this, "Pick your USA ISO or extracted game folder first.", Text,
+                MessageBox.Show(this, "Pick your USA ISO, RVZ or extracted game folder first.", Text,
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return null;
             }
@@ -2559,7 +2628,7 @@ internal static class Program
                     {
                         _status.Text = started ? "The game couldn't start." : "That copy couldn't be used.";
                         _statusDetail.Text = string.IsNullOrEmpty(LastError)
-                            ? "Check your USA ISO or extracted folder, then try again."
+                            ? "Check your USA ISO, RVZ or extracted folder, then try again."
                             : LastError;
                         MessageBox.Show(this, _statusDetail.Text, Text,
                             MessageBoxButtons.OK, MessageBoxIcon.Warning);
