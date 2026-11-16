@@ -1,6 +1,6 @@
 # Project state
 
-Updated: 2026-11-15
+Updated: 2026-11-16
 
 ## Latest verified result
 
@@ -56,7 +56,52 @@ The recompiled game boots to playable gameplay on Windows:
   a custom profile is preserved for the connected pad; the manual Nintendo
   override remains. Layout test 62/62 and launcher self-test 132/132. See
   [`notes/09-8bitdo-nintendo-mapping.md`](notes/09-8bitdo-nintendo-mapping.md).
-- 16:9 widescreen and the Hor+ widescreen hack are fixed in v0.0.2. The v0.0.1
+- **Controller hotfix (v0.1.1, staged and pending approval)**: players reported
+  Xbox pads with no input at all in v0.1.0. The layout heuristics are not the
+  cause - every Xbox row in SDL's database resolves to `layout=xbox`, and
+  Xbox/PlayStation/Generic generate byte-identical profiles. The release broke
+  **device binding**: the v0.1.0 runner lost the runtime's
+  "configured device not found; using the first SDL pad" fallback (present in
+  the v0.0.4 binary, and it fired for the Xbox pad in
+  `work/v004_upgrade_user` and `work/v004_final_upgrade`), and it now rewrites
+  `GCPadNew.ini` on every launch from its own SDL probe, which ran with
+  different SDL hints than Dolphin's backend. Fixed by re-applying
+  `docs/patches/dolphin-sdl-controller-fallback.patch` (now matches the same
+  device name with a shifted id first), mirroring the runtime's SDL hints in
+  the probe, dropping the raw-button-index D-pad comparison (35 legitimate DB
+  rows and SDL's WGI Xbox mapping were inverted by it), and configuring
+  `tools/rebuild_runner.bat` for this port (no baked-in `GSQE78`/DOL gate).
+  Layout test 130/130, session matrix 80/80, hidden-desktop boot smoke reaches
+  `module loaded`. Staged as v0.1.1 (26,124,775 bytes, SHA-256
+  `DA657D3076B2D2FC1A985A227A7180F92D8F49E6E0E94EE8CA3BCFB580AC5E35`,
+  notes in `work/release_notes_v0.1.1.md`); **not committed and not published**.
+  See [`notes/10-controller-hotfix.md`](notes/10-controller-hotfix.md).
+- **Memory card / slot A (v0.1.2 candidate, save + load verified)**:
+  the save hang was two config defects plus a runtime gap. Slot A was never
+  configured (Dolphin defaults to the GCI folder), the runtime never called
+  `UICommon::CreateDirectories`, and `SlotB = 0` is Dolphin's **Dummy**
+  device, which the game rejects with "THE DEVICE IN SLOT B IS NOT
+  SUPPORTED". Fixed by creating the user-path tree before
+  `UICommon::Init`, writing `SlotA = 1` / `SlotB = 255` in the launcher and
+  `recomplauncher.json`, and forcing both keys on existing installs.
+  Verified on a clean user dir: `GC/{USA,EUR,JAP}` and
+  `GC/MemoryCardA.USA.raw` (16,777,216 bytes) are created, slot A is EXI
+  type 1 (raw), and a Movie Lot career save changed the raw card from
+  SHA-256 `75273788B863F156D8DF1157B4D4D3A19A305C7DC0E70F34F71CC864B7513BD1`
+  to `B13262F7EFAA636368AF80CA283675C98CB367E3BA6F6C80F5C4D38725E7A1F8`
+  (one `AGGR_INLINE` / `GILE` directory entry, 57 blocks). A fresh process
+  then loaded it via Options -> Save & Load -> Load -> Slot A
+  (`LOADING 'SKATER CAREER'...`) and resumed directly in Movie Lot, the
+  saved park, with no character creation; the card SHA was unchanged.
+  See [`notes/11-memory-card.md`](notes/11-memory-card.md) and the shared
+  pattern in [`notes/12-memcard-shared-pattern.md`](notes/12-memcard-shared-pattern.md).
+- **Player release v0.1.2 staged and verified from `dist/`**: contains the
+  v0.1.1 controller fix plus the memory-card fix. Zip size 26,125,343 bytes,
+  SHA-256
+  `6CAE9F3DA3DA7FA6954F74B6B176BC4D9488D3466D93B34089A24321A5B41C23`,
+  2,662 files, no game data. Notes in `work/release_notes_v0.1.2.md`;
+  **not committed and not published**.
+  16:9 widescreen and the Hor+ widescreen hack are fixed in v0.0.2. The v0.0.1
   runner was a stale binary that ignored `aspect`/`widescreen_hack`; the new
   runner is built from the current ModernGekko source. See
   [`notes/04-widescreen.md`](notes/04-widescreen.md).
@@ -171,36 +216,66 @@ menu if those values need checking.
 
 ## Next actions
 
-1. **Audio**: working. No action; if a report says silent, check the Windows
+1. **Controller hotfix**: waiting on the hub. `build\gile.exe` is rebuilt and
+   `dist\AggressiveInline-Recomp-v0.1.1-Windows-x64` (+ zip) is staged; nothing
+   is committed or published. Per the hub's shared memcard fix, **publish
+   v0.1.2 instead**: it contains the controller fix plus the memory-card fix.
+   Do not publish v0.1.1 alone. After approval: commit, publish v0.1.2 and ask
+   Xbox / DualSense Edge / Xbox Elite / 8BitDo players for the `controller:` and
+   `controller configuration:` lines. A physical pad is still needed: no Xbox,
+   Edge, Elite or 8BitDo hardware is connected on this machine.
+2. **Memory card v0.1.2 (staged, pending approval)**: save and load are
+   verified end-to-end on the raw card (see notes 11/12). The stage carries
+   the runtime `UICommon::CreateDirectories` fix, the rebuilt runner
+   (`build\gile.exe`), the launcher `SlotA = 1` / `SlotB = 255` migration and
+   the manifest keys. Zip size 26,125,343 bytes, SHA-256
+   `6CAE9F3DA3DA7FA6954F74B6B176BC4D9488D3466D93B34089A24321A5B41C23`;
+   nothing committed or published. After approval, commit, publish and use
+   `work/release_notes_v0.1.2.md`.
+3. **Audio**: working. No action; if a report says silent, check the Windows
    per-app mixer, the launcher Audio page and the in-game Sound menu first.
-2. **Performance**: done for the first pass - Clang `-O3` + x86-64-v3 + ThinLTO
+4. **Performance**: done for the first pass - Clang `-O3` + x86-64-v3 + ThinLTO
    holds 59.9 FPS at 3x native internal in gameplay. PGO is optional from here.
-3. **Coverage**: complete the tutorial, level transitions, pause, memory-card
+5. **Coverage**: complete the tutorial, level transitions, pause, memory-card
    save/load, and at least one full level.
-4. **SMC review**: inspect the 100 `generated_smc.txt` ranges; only patch sites
+6. **SMC review**: inspect the 100 `generated_smc.txt` ranges; only patch sites
    that actually write executable memory at runtime.
-5. **Packaging**: done for v0.1.0. The launcher accepts ISO, RVZ or an extracted
+7. **Packaging**: done for v0.1.0. The launcher accepts ISO, RVZ or an extracted
    folder, verifies `GILE51`/DOL hash, extracts to
    `%LOCALAPPDATA%\AggressiveInlineRecomp`, and starts the bundled module.
    The release ships the full `defaults/GCPadNew*.ini` preset set, branded
    `gile.exe`/`gile-launcher.exe` version info and 16:9 window sizing. See
    [`notes/06-controller-runtime-and-resolution.md`](notes/06-controller-runtime-and-resolution.md).
-6. **Frame-time validation**: capture a clean active-gameplay window with the
+8. **Frame-time validation**: capture a clean active-gameplay window with the
    fixed launcher and warm shader cache. If 100 ms+ CPU stalls remain, build a
    PGO module from a gameplay profile. See
    [`notes/03-performance.md`](notes/03-performance.md).
-7. **zgui host function**: implement or stub `inlineOverlayGetNumContinues`
+9. **zgui host function**: implement or stub `inlineOverlayGetNumContinues`
    (`Continues`), which logs "Host function not Found" in the UI overlay.
 
 ## Known risks
+
+- **Controller hotfix unverified on hardware**: no Xbox, DualSense Edge, Elite or
+  8BitDo pad is connected on this machine, so v0.1.1 rests on SDL's DB rows plus
+  the restored device fallback. The first player report after release must be
+  checked against the two `controller` log lines.
+- **8BitDo mode ambiguity**: a Pro 2 reports B below A in both Nintendo and
+  standard HID mode, so the automatic Nintendo swap cannot distinguish them. The
+  manual presets (`8bitdo`, `8bitdo-nintendo`) are the override.
+- **Concurrent controller work**: another session in this window edited
+  `tools/controller_layout.hpp` (vendor-family fallback, `source=guid-family`)
+  and `tests/controller_layout_test.cpp` while this fix was in progress. Both
+  sets of changes are kept and the combined tree passes 130/130 + 80/80.
 
 - **Audio**: working through DSP LLE + Cubeb. Silence is a mute/config issue,
   not a port bug.
 - **Self-modifying code**: 100 flagged ranges; boot/gameplay currently OK, but a
   real text patch later could need an explicit DolRecomp patch.
 - **h4m/PSS video**: the intro movies render and use the working audio path.
-- **Memory card**: the save/load menu is reachable; actual .gci write/read has
-  not been verified.
+- **Memory card**: slot A raw card save + load verified. See
+  [`notes/11-memory-card.md`](notes/11-memory-card.md). Old savestates made
+  under the GCI-folder setup restore that device type and should not be
+  used for memcard testing.
 - **Performance**: the Clang module is at the 60 FPS cap in the tested scene at
   3x internal resolution, but one captured window had CPU-bound 1.5 s stalls.
   The v0.0.1 release asset predates the `Cache\Shaders`, affinity and generic

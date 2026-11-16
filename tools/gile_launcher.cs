@@ -642,6 +642,8 @@ internal static class Program
                 "GFXBackend = Vulkan" + Environment.NewLine +
                 "DSPHLE = False" + Environment.NewLine +
                 "EmulationSpeed = 1.0" + Environment.NewLine +
+                "SlotA = 1" + Environment.NewLine +
+                "SlotB = 255" + Environment.NewLine +
                 Environment.NewLine +
                 "[DSP]" + Environment.NewLine +
                 "Backend = Cubeb" + Environment.NewLine +
@@ -656,6 +658,15 @@ internal static class Program
         {
             EnsureIniKey(dolphin, "Core", "DSPHLE", "False");
             EnsureIniKey(dolphin, "Core", "EmulationSpeed", "1.0");
+            // Dolphin's default SlotA is the GCI *folder* card. Every install
+            // needs a real card in slot A, not an empty folder: the game's
+            // CARDProbeEx never completes against the folder device in this
+            // runtime and the save screen hangs on "checking memory card".
+            // Slot B must be None (255 = "nothing inserted"), not Dummy (0):
+            // the game treats Dummy as an unsupported device and stops on
+            // "THE DEVICE IN SLOT B IS NOT SUPPORTED".
+            SetIniKey(dolphin, "Core", "SlotA", "1");
+            SetIniKey(dolphin, "Core", "SlotB", "255");
             EnsureIniKey(dolphin, "DSP", "Backend", "Cubeb");
         }
 
