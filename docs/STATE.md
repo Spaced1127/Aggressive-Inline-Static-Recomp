@@ -2,6 +2,14 @@
 
 Updated: 2026-11-16
 
+## Working mode
+
+Quiet mode was **lifted by user directive on 2026-11-16**. Test apps launch
+normally with visible windows. Do not use
+`H:\Orchestration\tools\run-hidden.ps1`, and do not hide, minimize, move or
+kill the windows of test apps. This supersedes every earlier hidden-desktop
+instruction. See [`notes/13-visible-windows.md`](notes/13-visible-windows.md).
+
 ## Latest verified result
 
 The recompiled game boots to playable gameplay on Windows:
