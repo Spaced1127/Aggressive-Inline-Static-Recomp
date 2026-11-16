@@ -4,8 +4,14 @@ Updated: 2026-11-16
 
 ## Working mode
 
-Quiet mode was **lifted by user directive on 2026-11-16**. Test apps launch
-normally with visible windows. Do not use
+**Hub pause active (2026-11-16): no GUI or test launches.** Until the hub
+lifts it: no launchers, game executables, emulators, windows or audio. Host-side
+work only (code, analysis, builds without a GUI, docs). Do not hide anything
+and do not launch anything. Test cycles are suspended; blocked test actions are
+recorded under Next actions.
+
+Quiet mode was **lifted by user directive on 2026-11-16**. When the hub pause
+is lifted, test apps launch normally with visible windows. Do not use
 `H:\Orchestration\tools\run-hidden.ps1`, and do not hide, minimize, move or
 kill the windows of test apps. This supersedes every earlier hidden-desktop
 instruction. See [`notes/13-visible-windows.md`](notes/13-visible-windows.md).
@@ -82,7 +88,8 @@ The recompiled game boots to playable gameplay on Windows:
   Layout test 130/130, session matrix 80/80, hidden-desktop boot smoke reaches
   `module loaded`. Staged as v0.1.1 (26,124,775 bytes, SHA-256
   `DA657D3076B2D2FC1A985A227A7180F92D8F49E6E0E94EE8CA3BCFB580AC5E35`,
-  notes in `work/release_notes_v0.1.1.md`); **not committed and not published**.
+  notes in `work/release_notes_v0.1.1.md`); **never published**. It is
+  superseded by v0.1.2, which contains this fix plus the memory-card fix.
   See [`notes/10-controller-hotfix.md`](notes/10-controller-hotfix.md).
 - **Memory card / slot A (v0.1.2 candidate, save + load verified)**:
   the save hang was two config defects plus a runtime gap. Slot A was never
@@ -103,12 +110,15 @@ The recompiled game boots to playable gameplay on Windows:
   saved park, with no character creation; the card SHA was unchanged.
   See [`notes/11-memory-card.md`](notes/11-memory-card.md) and the shared
   pattern in [`notes/12-memcard-shared-pattern.md`](notes/12-memcard-shared-pattern.md).
-- **Player release v0.1.2 staged and verified from `dist/`**: contains the
-  v0.1.1 controller fix plus the memory-card fix. Zip size 26,125,343 bytes,
+- **Player release v0.1.2 PUBLISHED (2026-11-16)**: contains the v0.1.1
+  controller fix plus the memory-card fix. Zip size 26,125,343 bytes,
   SHA-256
   `6CAE9F3DA3DA7FA6954F74B6B176BC4D9488D3466D93B34089A24321A5B41C23`,
-  2,662 files, no game data. Notes in `work/release_notes_v0.1.2.md`;
-  **not committed and not published**.
+  2,662 files, no game data. Commit `a749ad6`, tag `v0.1.2`; release assets
+  are the zip and `SHA256SUMS`. URL
+  <https://github.com/Spaced1127/Aggressive-Inline-Static-Recomp/releases/tag/v0.1.2>.
+  Notes in `work/release_notes_v0.1.2.md`. The published asset was downloaded
+  and re-hashed; it matches. v0.1.1 was never published and is superseded.
   16:9 widescreen and the Hor+ widescreen hack are fixed in v0.0.2. The v0.0.1
   runner was a stale binary that ignored `aspect`/`widescreen_hack`; the new
   runner is built from the current ModernGekko source. See
@@ -224,28 +234,24 @@ menu if those values need checking.
 
 ## Next actions
 
-1. **Controller hotfix**: waiting on the hub. `build\gile.exe` is rebuilt and
-   `dist\AggressiveInline-Recomp-v0.1.1-Windows-x64` (+ zip) is staged; nothing
-   is committed or published. Per the hub's shared memcard fix, **publish
-   v0.1.2 instead**: it contains the controller fix plus the memory-card fix.
-   Do not publish v0.1.1 alone. After approval: commit, publish v0.1.2 and ask
-   Xbox / DualSense Edge / Xbox Elite / 8BitDo players for the `controller:` and
-   `controller configuration:` lines. A physical pad is still needed: no Xbox,
-   Edge, Elite or 8BitDo hardware is connected on this machine.
-2. **Memory card v0.1.2 (staged, pending approval)**: save and load are
-   verified end-to-end on the raw card (see notes 11/12). The stage carries
-   the runtime `UICommon::CreateDirectories` fix, the rebuilt runner
-   (`build\gile.exe`), the launcher `SlotA = 1` / `SlotB = 255` migration and
-   the manifest keys. Zip size 26,125,343 bytes, SHA-256
-   `6CAE9F3DA3DA7FA6954F74B6B176BC4D9488D3466D93B34089A24321A5B41C23`;
-   nothing committed or published. After approval, commit, publish and use
-   `work/release_notes_v0.1.2.md`.
+1. **TEST LAUNCHES PAUSED BY THE HUB (2026-11-16)**: do not launch the game,
+   launcher, emulator or any GUI until the hub lifts the pause; no audio.
+   Blocked test actions (resume when lifted, visible windows only):
+   post-release save/load smoke on a real window, controller hardware
+   confirmation (Xbox / DualSense Edge / Elite / 8BitDo), and the coverage runs
+   below. Host-side work is allowed.
+2. **v0.1.2 published**: commit `a749ad6`, tag `v0.1.2`, zip SHA-256
+   `6CAE9F3DA3DA7FA6954F74B6B176BC4D9488D3466D93B34089A24321A5B41C23`.
+   Post-release: ask players for the `controller:` and
+   `controller configuration:` lines, and for Edge / Elite / 8BitDo
+   confirmation. A physical pad is still needed on this machine.
 3. **Audio**: working. No action; if a report says silent, check the Windows
    per-app mixer, the launcher Audio page and the in-game Sound menu first.
 4. **Performance**: done for the first pass - Clang `-O3` + x86-64-v3 + ThinLTO
    holds 59.9 FPS at 3x native internal in gameplay. PGO is optional from here.
-5. **Coverage**: complete the tutorial, level transitions, pause, memory-card
-   save/load, and at least one full level.
+5. **Coverage**: memory-card save/load is done. Remaining: complete the
+   tutorial, level transitions, pause, and at least one full level (blocked by
+   the launch pause).
 6. **SMC review**: inspect the 100 `generated_smc.txt` ranges; only patch sites
    that actually write executable memory at runtime.
 7. **Packaging**: done for v0.1.0. The launcher accepts ISO, RVZ or an extracted
