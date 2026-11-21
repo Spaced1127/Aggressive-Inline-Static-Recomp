@@ -193,7 +193,11 @@ The recompiled game boots to playable gameplay on Windows:
   hitches. Not yet in a release. User play-test: Movie Lot and the other
   levels (unlocked with the in-game cheat `wwssadadBABA`, i.e. arrows plus the
   letters B A B A on the cheat keyboard) feel smooth.
-- **Player release v0.1.3 (2026-11-21)**: level-start stutter fix
+- **Player release v0.1.3 PUBLISHED (2026-11-21)**: commit `04eea99`, tag
+  `v0.1.3`, release assets the zip and `SHA256SUMS`, marked Latest. URL
+  <https://github.com/Spaced1127/Aggressive-Inline-Static-Recomp/releases/tag/v0.1.3>.
+  The published zip was downloaded and re-hashed; it matches. Contents: the
+  level-start stutter fix
   (`Sys/GameSettings/GILE51.ini`) plus the generic controller system
   ([`notes/16-controller-generic.md`](notes/16-controller-generic.md)). Zip
   26,112,756 bytes, SHA-256
@@ -309,11 +313,11 @@ menu if those values need checking.
    do host-side work only. Remaining test actions: physical button
    confirmation on the connected Xbox pad, Edge / Elite / 8BitDo hardware,
    Bluetooth vs USB, connect-after-launch, and the coverage runs below.
-2. **v0.1.2 published**: commit `a749ad6`, tag `v0.1.2`, zip SHA-256
-   `6CAE9F3DA3DA7FA6954F74B6B176BC4D9488D3466D93B34089A24321A5B41C23`.
-   Post-release: ask players for the `controller:` and
-   `controller configuration:` lines, and for Edge / Elite / 8BitDo
-   confirmation. Only an Xbox Series/One USB pad is present on this machine.
+2. **v0.1.3 published** (latest): commit `04eea99`, tag `v0.1.3`, zip SHA-256
+   `611D8586778C1B310C8E4A40938FA00F9833FEEA25BEE1CFC4ADB915443E6EA4`.
+   Post-release: ask players for the `controller:` lines, Edge / Elite /
+   8BitDo confirmation, and whether any level still hitches outside the
+   LOADING screen. Only an Xbox Series/One USB pad is present on this machine.
 3. **Audio**: working. No action; if a report says silent, check the Windows
    per-app mixer, the launcher Audio page and the in-game Sound menu first.
 4. **Performance / level-start stutter**: shipped in v0.1.3. Fixed by
