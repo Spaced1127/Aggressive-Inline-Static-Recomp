@@ -112,6 +112,77 @@ during the load transition, before gameplay is stable.
    dispatch overhead as the dominant cause. PGO is a possible later refinement
    for the remaining load work, not the fix for the 1.6 s freezes.
 
+## Follow-up: idle loop and the fix (2026-11-21, later)
+
+### Corrections to the sections above
+
+- The JIT and GPU-texture-decoding comparisons were run with
+  `FastDiscSpeed = True` in `jit_user` / `gputex_user`. They rule things out
+  only for the remaining fast-disc hitches, not for the normal-disc staircase.
+- The 100 ms staircase and the 1.3-1.6 s freezes are **emulated-time** stalls,
+  not host slowness. Every long frame is a whole number of vblanks
+  (100.1 ms = 6 VI, 116.8 = 7, 133.3 = 8, 1601.7 = 96). They reproduce
+  frame-for-frame with and without the idle fix below. The game simply does not
+  present while it waits on emulated disc reads.
+
+### Root cause of the sustained slowdown: no idle skipping
+
+ModernGekko's static core idle-skips only at one configured PC
+(`[Core] StaticRecompIdlePC`, `StaticRecompCore_Run.cpp`). GILE51 had none.
+Dispatch sampling (`STATICRECOMP_DISPATCH_SAMPLES=1`) during the Movie Lot run
+showed the hottest guest site at `0x80143348`: 6,720 samples, ~30 % of all
+samples. That is the SDK `SelectThread` idle loop:
+
+```
+80143344  bl    OSEnableInterrupts      (0x80140944)
+80143348  lwz   r0, -28232(r13)         RunQueueBits
+8014334c  cmplwi r0, 0
+80143350  beq   0x80143348
+80143354  bl    OSDisableInterrupts     (0x80140930)
+```
+
+Dolphin's JIT detects this loop and skips it. The static core spun on it once per
+dispatch, and that cost more host time than the cycles it charged. The more
+time the game spent waiting on the disc, the further emulation fell behind:
+Movie Lot gameplay at 54 FPS / speed 0.92. `FastDiscSpeed` hid most of it by
+shortening the waits.
+
+`tools/perf/find_spin_loops.py` lists short polling loops in the DOL and
+`tools/perf/dol_context.py` prints the code around one. The other matches
+(`0x80129220`, `0x801419d8`, `0x80141a08`) are one-off init waits.
+
+### Measurements (Movie Lot, warm caches, 30 s after pressing A)
+
+| Config | frames | avg ms | p95 | max | >50 ms | sum >50 ms | post FPS / speed |
+|---|---:|---:|---:|---:|---:|---:|---|
+| Normal disc (baseline) | 1340 | 26.82 | 29.87 | 1601.7 | 47 | 12547 | 54.10 / 0.918 |
+| Normal disc + idle PC | 1447 | 24.84 | 18.61 | 1601.7 | 47 | 12563 | 59.94 / 1.001 |
+| Fast disc only (earlier run) | 2238 | 18.30 | 19.57 | 466.8 | 14 | 2553 | 59.95 / 0.9997 |
+| **Fast disc + idle PC** | 2015 | 17.83 | 17.51 | 485.1 | 14 | 2520 | **59.94 / 0.9994** |
+| Fast disc + idle PC, 2x CPU overclock | 1998 | 17.99 | 18.13 | 465.7 | 12 | 2668 | 59.93 / 1.001 |
+| **Shipped `GILE51.ini` (game-settings path)** | 2015 | 17.84 | 17.39 | 478.8 | 14 | 2536 | **59.94 / 0.9998** |
+
+- The idle PC fixes the sustained slowdown. Fast disc removes the long freezes.
+  Together, every hitch is confined to ~3.5 s right after pressing A (the
+  LOADING splash and first frames), worst frame ~480 ms. Afterwards the game
+  holds 60 FPS.
+- Doubling the emulated CPU clock does not shrink the remaining hitches, and it
+  costs host time at Level Select (speed 0.92 there). So they are waits on
+  transfers (DVD buffer at 32 MiB/s, DMA or ARAM), not guest CPU work.
+  Overclock is not used.
+
+### Shipped fix
+
+`assets/GameSettings/GILE51.ini` sets `StaticRecompIdlePC = 0x80143348` and
+`FastDiscSpeed = True`. `tools/make_release_gile.ps1` copies it into the staged
+`Sys/GameSettings/`, so it applies by game ID regardless of launcher, and the
+launcher/`recomplauncher.json` need no change. For dev runs with the shared
+runner, copy it to `<user-dir>\GameSettings\GILE51.ini`. The `gameini` run above
+used exactly that path.
+
+Still to validate: intro FMV, audio (music/SFX/speech) by ear, a level
+transition, and a long Movie Lot session.
+
 ## Raw data
 
 PresentMon CSVs and screenshots are local under
@@ -123,3 +194,10 @@ PresentMon CSVs and screenshots are local under
 - `levelstart-jit2-20261121-084003.csv` - Tutorial JIT comparison
 - `movielot-cold-20261121-084501-after.png` - Movie Lot gameplay
 - `movielot-fastdisc-20261121-084619-after.png` - game-over screen (idle run)
+- `idle-base-20261121-094311.csv` - normal disc, dispatch samples
+- `idle-pc-20261121-094418.csv` - normal disc + idle PC
+- `idle-fast-20261121-094556.csv` - fast disc + idle PC
+- `idle-fast-oc2-20261121-094710.csv` - fast disc + idle PC + 2x overclock
+- `gameini-20261121-094913.csv` - `GILE51.ini` via `<user>\GameSettings`
+
+Summaries: `python tools\perf\summarize_presentmon.py <csv>... --timeline`.

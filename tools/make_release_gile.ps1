@@ -18,17 +18,16 @@ foreach ($p in @($csc, $Runner, $Module, $Rvz, $Sys, $Licenses,
                  (Join-Path $root "tools\gile_launcher.cs"),
                  (Join-Path $root "tools\set_icon.cs"),
                  (Join-Path $root "assets\gile.ico"),
+                 (Join-Path $root "assets\GameSettings\GILE51.ini"),
                  (Join-Path $root "recomplauncher.json"),
                  (Join-Path $root "README.md"),
                  (Join-Path $root "PLAYERS.md"),
-                 (Join-Path $root "run.bat"),
-                 (Join-Path $root "work\user\Config\GCPadNew.ini"))) {
+                 (Join-Path $root "run.bat"))) {
     if (-not (Test-Path $p)) { throw "Missing release input: $p" }
 }
 
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $stage | Out-Null
-New-Item -ItemType Directory -Force -Path (Join-Path $stage "defaults") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $stage "game") | Out-Null
 
 # Compile the launcher from source so it always matches this tree.
@@ -60,6 +59,9 @@ if ($LASTEXITCODE -ne 0) { throw "gile.exe version info failed" }
 if ($LASTEXITCODE -ne 0) { throw "gile-launcher.exe version info failed" }
 
 Copy-Item -LiteralPath $Sys -Destination (Join-Path $stage "Sys") -Recurse -Force
+# Per-game runtime settings (idle-loop PC, fast disc): docs/notes/14-movielot-stutter.md
+Copy-Item -LiteralPath (Join-Path $root "assets\GameSettings\GILE51.ini") `
+    -Destination (Join-Path $stage "Sys\GameSettings\GILE51.ini") -Force
 Copy-Item -LiteralPath $Licenses -Destination (Join-Path $stage "LICENSES") -Recurse -Force
 Copy-Item -LiteralPath "H:\Projects\SB-RFD\lib\ModernGekko-Template\lib\ModernGekko\LICENSE" `
     -Destination (Join-Path $stage "LICENSES\ModernGekko.txt") -Force
@@ -67,8 +69,6 @@ Copy-Item -LiteralPath (Join-Path $root "recomplauncher.json") -Destination $sta
 Copy-Item -LiteralPath (Join-Path $root "README.md") -Destination $stage -Force
 Copy-Item -LiteralPath (Join-Path $root "PLAYERS.md") -Destination $stage -Force
 Copy-Item -LiteralPath (Join-Path $root "run.bat") -Destination $stage -Force
-Copy-Item -Path (Join-Path $root "defaults\GCPadNew*.ini") `
-    -Destination (Join-Path $stage "defaults") -Force
 Set-Content -LiteralPath (Join-Path $stage "VERSION") -Value "v$Version" -Encoding ASCII
 
 $gameReadme = @"

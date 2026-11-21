@@ -6,7 +6,11 @@ param(
     [string]$Tag = "levelstart-warm",
     [switch]$StartLevel,
     [string]$Core = "static",
-    [int]$RightPresses = 0
+    [int]$RightPresses = 0,
+    # The shipped runner (has the first-SDL-pad fallback). Needs build\Sys; see
+    # tools\run_dev.bat. The 2026-11-21 captures in docs/notes/14 used the
+    # shared H:\Projects\SB-RFD\build\moderngekko\moderngekko-run.exe.
+    [string]$Runner = "H:\Projects\Agressive Inline Static Recompile\build\gile.exe"
 )
 $ErrorActionPreference = "Stop"
 $root = "H:\Projects\Agressive Inline Static Recompile"
@@ -36,7 +40,8 @@ if ($Core -eq "jit") {
     $argLine = "--game `"$game`" --module `"$root\build\gGILE51_recomp_clang.dll`" --user-dir `"$UserDir`" --audio cubeb --automation-dir `"$auto`" --load-state `"$State`""
 }
 if ($Core -eq "jit") { $env:MODERNGEKKO_STATICRECOMP = "0" } else { $env:MODERNGEKKO_STATICRECOMP = "1" }
-$p = Start-Process -FilePath "H:\Projects\SB-RFD\build\moderngekko\moderngekko-run.exe" `
+$argLine = "--core $Core " + $argLine
+$p = Start-Process -FilePath $Runner `
     -ArgumentList $argLine -RedirectStandardOutput $outLog -RedirectStandardError $errLog -PassThru
 
 function Read-Status {

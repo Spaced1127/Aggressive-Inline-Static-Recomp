@@ -16,6 +16,19 @@ is lifted, test apps launch normally with visible windows. Do not use
 kill the windows of test apps. This supersedes every earlier hidden-desktop
 instruction. See [`notes/13-visible-windows.md`](notes/13-visible-windows.md).
 
+**Shared guide (standing user directive, 2026-11-21):** any finding, fix or
+tool from this port that would help other GameCube recomps goes into
+<https://github.com/Spaced1127/GameCube-Static-Recomp-Guide> (local checkout
+`H:\Projects\GameCube-Static-Recomp-Guide`). Keep game data and personal
+details out of it.
+
+**Fixes must not depend on the user's controller:** a controller change must
+work for any connected pad without editing a config. Dev launches use
+`build\gile.exe` (the shipped runner, with the first-SDL-pad fallback) through
+`tools\run_dev.bat`, not the older shared `moderngekko-run.exe`, which lacks the
+fallback. `build\Sys` is a local junction to
+`H:\Projects\SB-RFD\build\moderngekko\Sys`.
+
 On 2026-11-21 the user directed level-start stutter testing. The windowed runs
 in [`notes/14-movielot-stutter.md`](notes/14-movielot-stutter.md) were made
 under that direction. The hub pause text above remains for other work.
@@ -166,6 +179,36 @@ The recompiled game boots to playable gameplay on Windows:
   to 467 ms, removes the sustained 100 ms staircase, and restores
   59.95 FPS / speed 0.9997. Full data and reproduction in
   [`notes/14-movielot-stutter.md`](notes/14-movielot-stutter.md).
+- **Level-start stutter fixed in source (2026-11-21, later)**: there were two
+  causes. (1) No idle skipping. The static core idle-skips only at
+  `[Core] StaticRecompIdlePC`, which GILE51 lacked, so the SDK `SelectThread`
+  idle loop at `0x80143348` (the hottest dispatch site, ~30 % of samples) spun
+  on the host. That left Movie Lot at 54 FPS / speed 0.92. (2) Emulated disc
+  timing. The long freezes are whole numbers of vblanks in emulated time
+  (100.1 ms = 6 VI, 1601.7 ms = 96 VI), so only `FastDiscSpeed` removes them.
+  `assets/GameSettings/GILE51.ini` sets both and the release script ships it in
+  `Sys/GameSettings/`. Measured via the game-settings path: worst frame
+  1602 -> 479 ms, >50 ms frames 47 -> 14, all within ~3.5 s of pressing A, then
+  59.94 FPS / speed 0.9998. A 2x CPU overclock does not help the remaining
+  hitches. Not yet in a release. User play-test: Movie Lot and the other
+  levels (unlocked with the in-game cheat `wwssadadBABA`, i.e. arrows plus the
+  letters B A B A on the cheat keyboard) feel smooth.
+- **Player release v0.1.3 (2026-11-21)**: level-start stutter fix
+  (`Sys/GameSettings/GILE51.ini`) plus the generic controller system
+  ([`notes/16-controller-generic.md`](notes/16-controller-generic.md)). Zip
+  26,112,756 bytes, SHA-256
+  `611D8586778C1B310C8E4A40938FA00F9833FEEA25BEE1CFC4ADB915443E6EA4`,
+  2,646 files, no game data. Verified from the staged `gile.exe` with a user
+  dir that has no settings of its own: Movie Lot worst frame 480 ms, 14 frames
+  >50 ms, 59.94 FPS / 0.9995x after 30 s; idle-loop samples 425; Xbox One pad
+  bound automatically. Launcher self-test 8/8; layout test passes. Notes:
+  [`release-notes/v0.1.3.md`](release-notes/v0.1.3.md).
+- **Dev controller binding (2026-11-21)**: an Xbox One pad did nothing in dev
+  runs because the shared `moderngekko-run.exe` (built Nov 8) has no
+  first-SDL-pad fallback and the dev profile names a DualSense. Dev launches now
+  use `build\gile.exe`. With the profile unchanged (DualSense), it logged
+  `configured device missing; bound "SDL/0/Xbox One Controller"`, the pad
+  worked, and the game ran at 59.9 FPS. Release players were never affected.
 
 No crash, hang, or unimplemented-stub abort was observed through these scenes.
 With the Clang `-O3` module the window title reports **59.9 FPS** in gameplay at
@@ -273,13 +316,13 @@ menu if those values need checking.
    confirmation. Only an Xbox Series/One USB pad is present on this machine.
 3. **Audio**: working. No action; if a report says silent, check the Windows
    per-app mixer, the launcher Audio page and the in-game Sound menu first.
-4. **Performance / level-start stutter**: Clang `-O3` + x86-64-v3 + ThinLTO
-   holds 59.9 FPS at 3x native internal in steady gameplay, but Movie Lot's
-   load has 1.3-1.6 s freezes and a 100 ms staircase at the default emulated
-   disc speed. `FastDiscSpeed = True` removes most of it (worst frame 1602 ms ->
-   467 ms, sustained 56.8 -> 59.95 FPS). Next: land the setting in
-   `tools/gile_launcher.cs` and `recomplauncher.json`, then validate a level
-   transition and audio. See
+4. **Performance / level-start stutter**: shipped in v0.1.3. Fixed by
+   `assets/GameSettings/GILE51.ini` (`StaticRecompIdlePC = 0x80143348`,
+   `FastDiscSpeed = True`), shipped into `Sys/GameSettings/` by
+   `tools/make_release_gile.ps1`. No launcher or `recomplauncher.json` change
+   is needed. Next: validate the intro FMV, audio by ear, a level transition
+   and a long Movie Lot session, then cut a release. The remaining ~0.5 s
+   hitches during the LOADING splash are transfer waits, not CPU work. See
    [`notes/14-movielot-stutter.md`](notes/14-movielot-stutter.md).
 5. **Coverage**: memory-card save/load is done. Remaining: complete the
    tutorial, level transitions, pause, and at least one full level (blocked by
@@ -292,10 +335,10 @@ menu if those values need checking.
    The release ships the full `defaults/GCPadNew*.ini` preset set, branded
    `gile.exe`/`gile-launcher.exe` version info and 16:9 window sizing. See
    [`notes/06-controller-runtime-and-resolution.md`](notes/06-controller-runtime-and-resolution.md).
-8. **Frame-time validation**: after enabling `FastDiscSpeed`, capture a 60 s
-   Movie Lot gameplay window (warm shader cache) and a level transition. The
-   remaining 100-467 ms load hitches are unattributed; test null audio, GPU
-   texture decoding, and warm/cold pipeline cache before considering PGO. See
+8. **Frame-time validation**: with `GILE51.ini`, capture a 60 s Movie Lot
+   gameplay window and a level transition. Other levels may wait in different
+   loops; check `STATICRECOMP_DISPATCH_SAMPLES=1` output for a new hot spin
+   site before considering PGO. See
    [`notes/03-performance.md`](notes/03-performance.md) and
    [`notes/14-movielot-stutter.md`](notes/14-movielot-stutter.md).
 9. **zgui host function**: implement or stub `inlineOverlayGetNumContinues`
@@ -325,10 +368,9 @@ menu if those values need checking.
   under the GCI-folder setup restore that device type and should not be
   used for memcard testing.
 - **Performance**: the Clang module is at the 60 FPS cap in steady gameplay at
-  3x internal, but Movie Lot's load is CPU-bound in the guest and stutters
-  badly at the default emulated disc speed. `FastDiscSpeed` is the measured
-  mitigation but is not yet in the launcher/release config. The remaining
-  100-467 ms load hitches are unattributed. The v0.0.1 release asset predates
+  3x internal. The Movie Lot stutter fix (`GILE51.ini`: idle PC + fast disc)
+  ships in v0.1.3. The user play-tested it, but the intro FMV and audio have
+  not been specifically re-checked with it. ~0.5 s hitches remain during the LOADING splash (transfer waits). The v0.0.1 release asset predates
   the `Cache\Shaders`, affinity and generic runner fixes; v0.0.2+ contain them.
   See [`notes/14-movielot-stutter.md`](notes/14-movielot-stutter.md).
 - **Missing host function**: `inlineOverlayGetNumContinues` is called by the
@@ -351,7 +393,8 @@ tools\build_clang.bat
 # Build the MSVC module (writes to C:\gile\modules)
 tools\build_msvc.bat
 
-# Dev run windowed
+# Dev run windowed (build\gile.exe; any SDL pad; extra args pass through,
+# e.g. --load-state work\memtest\levelselect.state)
 tools\run_dev.bat
 
 # Build the player release (stage + zip)

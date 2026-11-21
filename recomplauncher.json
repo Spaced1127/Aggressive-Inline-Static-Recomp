@@ -90,7 +90,8 @@
         "Video/widescreen_hack": "true",
         "Video/mute": "false",
         "Video/volume": "100",
-        "Video/efb_access": "true"
+        "Video/efb_access": "true",
+        "Input/controller_class": "auto"
       },
       "ensure": {
         "Video/aspect": "wide",
@@ -157,6 +158,20 @@
       ],
       "defaults": {
         "Video/widescreen_hack": "true"
+      }
+    },
+    {
+      "id": "controller_class",
+      "label": "Controller layout",
+      "in": "frontend",
+      "help": "Auto reads the SDL pad type: Switch Pro and Joy-Con use Nintendo (A/B and X/Y swapped); Xbox, PlayStation, generic and 8BitDo XInput pads use positional. The profile is one canonical file and is never rewritten.",
+      "choices": [
+        { "label": "Auto (per pad type)", "set": { "Input/controller_class": "auto" } },
+        { "label": "Positional (Xbox / PlayStation)", "set": { "Input/controller_class": "positional" } },
+        { "label": "Nintendo (A/B and X/Y swap)", "set": { "Input/controller_class": "nintendo" } }
+      ],
+      "defaults": {
+        "Input/controller_class": "auto"
       }
     },
     {

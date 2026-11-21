@@ -17,17 +17,17 @@ The game boots and reaches playable gameplay:
   with working text and 3D background scenes.
 - The Tutorial level loads and renders: world geometry, reflections, skinned
   player character, HUD, and tutorial overlays.
-- Controller input works with DualSense, DualSense Edge, DualShock, Xbox,
-  Xbox Elite Series 1/2, Switch Pro, Steam, 8BitDo and other SDL pads. The game
-  auto-detects the first connected SDL pad and falls back to it when an existing
-  profile names a different device, so RecompLauncher installs need no
-  controller setup. The CONTROLLER page remains for choosing a specific pad
-  when several are connected. Edge/Elite paddles and Fn buttons are
-  intentionally unbound; see
-  [`docs/notes/08-edge-elite-controllers.md`](docs/notes/08-edge-elite-controllers.md).
-  8BitDo Nintendo-mode pads are detected from their live SDL mapping, so A/B and
-  X/Y stay on the printed buttons; Ultimate and 64 keep the standard layout. See
-  [`docs/notes/09-8bitdo-nintendo-mapping.md`](docs/notes/09-8bitdo-nintendo-mapping.md).
+- Controller input works with any SDL pad (DualSense, DualShock, Xbox, Elite,
+  Switch Pro, 8BitDo, Steam and others) with no setup. One canonical profile
+  is written once and never rewritten. The connected pad is bound in memory,
+  with hot-plug, so swapping controllers needs no config change. The launcher
+  page only picks the button class (auto / positional / nintendo). See
+  [`docs/notes/16-controller-generic.md`](docs/notes/16-controller-generic.md).
+- Level starts no longer freeze. `Sys/GameSettings/GILE51.ini` sets the SDK
+  idle-loop skip (`StaticRecompIdlePC = 0x80143348`) and `FastDiscSpeed`. Movie
+  Lot's worst frame went from 1602 ms to 479 ms, and the level runs at
+  59.94 FPS / 1.0x speed instead of 54 FPS / 0.92x. See
+  [`docs/notes/14-movielot-stutter.md`](docs/notes/14-movielot-stutter.md).
 - New installs default to 16:9 at the closest 16:9 resolution to the desktop
   (2560x1440 on a 1440p display). The selected resolution sizes the game window
   and Fullscreen windowed fills the monitor.
@@ -38,9 +38,9 @@ The game boots and reaches playable gameplay:
   with the Clang `-O3` module (`speed~0.999`).
 - No crash or unimplemented-stub abort has been observed through the first
   level load.
-- A standalone player release is staged in
-  `dist/AggressiveInline-Recomp-v0.1.0-Windows-x64/` with a WinForms launcher,
-  direct ISO/RVZ import, the Clang module and no game data.
+- Player release **v0.1.3**: WinForms launcher, direct ISO/RVZ import, the
+  Clang module, the per-game settings file and no game data. Release notes:
+  [`docs/release-notes/v0.1.3.md`](docs/release-notes/v0.1.3.md).
 - 16:9 widescreen and the Hor+ widescreen hack work in v0.0.2. The v0.0.1
   runner was a stale binary that ignored the aspect settings; the new runner is
   built from the current ModernGekko source.
@@ -94,27 +94,29 @@ copy /Y C:\gile\modules\GILE51\<cache>\gGILE51_recomp.dll       build\gGILE51_re
 tools\run_dev.bat
 
 # 5. Build the player release
-powershell -ExecutionPolicy Bypass -File tools\make_release_gile.ps1 -Version 0.1.0
+powershell -ExecutionPolicy Bypass -File tools\make_release_gile.ps1 -Version 0.1.3
 ```
 
-`tools\run_dev.bat` starts the game in a window with the profile in
-`work\user\Config\GCPadNew.ini`. The release launcher has a **CONTROLLER** page
-with ready-made DualSense, DualSense Edge, DualShock, Xbox, Xbox Elite,
-Switch Pro, Steam and 8BitDo layouts, plus an exact "Read from log" device
-picker.
+`tools\run_dev.bat` starts `build\gile.exe` (the shipped runner) in a window
+with the user dir `work\user` and the per-game settings file, and passes extra
+arguments through (e.g. `--load-state <state>`). It needs `build\Sys`, a
+junction to `H:\Projects\SB-RFD\build\moderngekko\Sys`. Any connected SDL pad
+is bound automatically.
 
 ## Release
 
 `tools\make_release_gile.ps1` builds:
 
 ```
-dist/AggressiveInline-Recomp-v0.1.0-Windows-x64/
-dist/AggressiveInline-Recomp-v0.1.0-Windows-x64.zip
+dist/AggressiveInline-Recomp-v<version>-Windows-x64/
+dist/AggressiveInline-Recomp-v<version>-Windows-x64.zip
 ```
 
 The stage contains `gile-launcher.exe`, `gile.exe`, the Clang module,
-`rvz_extract.exe`, `Sys/`, the full `defaults/GCPadNew*.ini` preset set,
-`LICENSES/`, `recomplauncher.json`, the player docs and an empty `game/` folder.
+`rvz_extract.exe`, `Sys/` (with `Sys/GameSettings/GILE51.ini` from
+`assets/GameSettings/`), `LICENSES/`, `recomplauncher.json`, the player docs
+and an empty `game/` folder. No controller profile is shipped; the runner
+writes one on first launch.
 The launcher accepts an ISO, an RVZ or an extracted folder. RVZ is decoded
 natively and written straight to the same `sys/` + `files/` layout as the ISO
 path, with no temporary ISO. It verifies `GILE51` and the DOL SHA-256, extracts

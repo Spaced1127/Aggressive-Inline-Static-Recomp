@@ -67,43 +67,33 @@ unbound; they do not duplicate or override the face buttons. If the
 controller's own software maps a paddle to a standard button, that assignment
 happens before SDL.
 
-The game auto-detects the first connected SDL gamepad on first play and writes
-the matching profile. You do not need the launcher page for a single pad, and
-this also works when RecompLauncher starts the game directly.
+**Any connected controller works with no setup.** The game writes one standard
+profile the first time it runs and never rewrites it. Whichever SDL pad is
+connected is used. If you swap controllers, for example Xbox to DualSense, the
+new one works on the next launch, or within about two seconds if you plug it in
+while the game is running. You never need to edit a file or press a button in
+the launcher for this, and it also works when RecompLauncher starts the game.
 
-8BitDo pads are detected from their live SDL button mapping, not their name. A
-Pro 2 in Nintendo or Switch mode reports the printed **B** as SDL `A`, so the
-runner switches to the Nintendo layout and keeps the labelled buttons in the
-right positions. An 8BitDo Ultimate or 64 reports a standard mapping and keeps
-the normal Xbox-style layout. The runner also corrects a reversed D-pad if the
-pad's mapping reports one.
+The only choice is the **button class**, on the launcher's **CONTROLLER** page:
 
-If a profile already exists for a different pad, the game falls back to the
-first connected SDL pad, so an Xbox, PlayStation, Switch or 8BitDo pad still
-works without editing the file. A hand-edited profile is preserved while that
-same pad is connected.
+- **Auto** (default): Switch Pro, Joy-Con and 8BitDo pads in Switch mode use
+  **Nintendo**; everything else uses **Positional**.
+- **Positional**: buttons by position (Xbox / PlayStation style).
+- **Nintendo**: A/B and X/Y swapped so the printed letters match the GameCube
+  letters.
 
-To choose a specific pad, for example when two controllers are connected:
+The D-pad, sticks and triggers are never swapped.
 
-1. Connect the controller and start the game once so ModernGekko logs its SDL
-   name.
-2. Open **CONTROLLER** in the launcher.
-3. Pick your layout.
-4. Press **Read from log** to fill the exact SDL device name.
-5. Press **Apply layout**, then restart the game.
-
-Dolphin matches the device name exactly, including `SDL/0/` or `SDL/1/`. The
-launcher backs up the old `GCPadNew.ini` before writing a new one.
-
-The runner writes one diagnostic line per pad to `logs\run.log`:
+The runner writes one diagnostic line to `logs\run.log`:
 
 ```
-controller: "<name>" guid=<32-hex> bus=<usb|bluetooth> vid=<vvvv> pid=<pppp> layout=<xbox|playstation|switch|generic> source=<guid|mapping|type|default> dpad_swap=<yes|no> face_swap=<yes|no> paddles=unbound extras=unbound family="<family>"
+controller: name="<pad>" guid=<32-hex> type=<sdl type> class=<positional|nintendo> override=<auto|positional|nintendo> device="SDL/0/<pad>" source=<sdl|keyboard> profile=<written|static>
+controller: configured device missing; bound "SDL/0/<pad>"
 ```
 
-If a pad is mapped wrongly, send that line. For an Edge or Elite, also say
-whether it was connected by USB or Bluetooth. For 8BitDo, say whether the pad
-was in Nintendo/Switch mode or standard/XInput mode.
+The second line is normal after you change controllers. If a pad is mapped
+wrongly, send these lines and say whether it was connected by USB or Bluetooth.
+For 8BitDo, also say whether the pad was in Switch mode or XInput mode.
 
 ### Button layout
 
@@ -123,11 +113,9 @@ the same layout on every pad:
 | C stick | Camera | Right stick | Right stick | Right stick |
 | L / R | Triggers | LT / RT | L2 / R2 | ZL / ZR |
 
-On a Switch Pro this means GameCube **A** is the south button printed **B**,
-and GameCube **B** is the east button printed **A**. That is intentional: the
-buttons stay in the same physical positions as an Xbox or PlayStation pad. A
-Pro 2 in Nintendo or Switch mode behaves the same way. An 8BitDo Ultimate or 64
-in standard mode uses the Xbox-style positions.
+The Switch Pro column is the **Positional** class. With **Auto** or
+**Nintendo** a Switch Pro uses the Nintendo class instead, so the button
+printed **A** is GameCube A.
 
 The profile is stored at:
 
@@ -135,8 +123,25 @@ The profile is stored at:
 %LOCALAPPDATA%\AggressiveInlineRecomp\Config\GCPadNew.ini
 ```
 
-You can edit it by hand from **Open profile**. There is no keyboard gameplay
-mapping in this build.
+You can edit it by hand from **Open profile**; the game will not overwrite it.
+If the first launch happened with no controller connected, the profile holds
+keyboard bindings. Delete the file once a pad is connected to get the standard
+pad profile.
+
+## Cheats
+
+The **Cheats** screen (Options) compares the text you type, so enter every
+code on the on-screen keyboard. Directions are the keyboard's arrow keys, and
+letters such as **B A B A** are keyboard letters, not controller buttons.
+
+| Type | Unlocks |
+|---|---|
+| ↑ ↑ ↓ ↓ ← → ← → B A B A | All levels, park editor items, full stats |
+| ↓ → → ↓ ← ↓ ← ↓ → → → | All characters |
+| SKELETON | All keys |
+| KHUFU | Invulnerability |
+
+Save afterwards (Options -> Save & Load) to keep the unlocks.
 
 ## Resolution and full screen
 
@@ -174,14 +179,14 @@ Settings live in:
 
 ## Save data
 
-The game uses a folder-based memory card:
+Slot A is a standard 16 MB memory card file (Slot B is empty):
 
 ```
-%LOCALAPPDATA%\AggressiveInlineRecomp\GC\USA\Card A\
+%LOCALAPPDATA%\AggressiveInlineRecomp\GC\MemoryCardA.USA.raw
 ```
 
-The Save & Load menu is reachable. A full write/read test with a real `.gci`
-has not been completed yet; back up the folder before relying on it.
+Saving and loading a career through Options -> Save & Load is verified. Back
+up that file to keep your progress.
 
 ## Performance logs
 
@@ -196,6 +201,12 @@ cores. The first launch after a fresh install may compile shaders; later
 launches should be smoother. If you see frame drops, keep the latest
 `perf-*.csv` and send it with a note about what was on screen.
 
+Level loading: from v0.1.3 the game no longer freezes for 1-2 seconds at a
+level start and runs at 60 FPS once the level has loaded. A few short hitches
+(up to about half a second) can still happen while the LOADING screen is up.
+The settings for this are in `Sys\GameSettings\GILE51.ini`; you do not need to
+change anything.
+
 ## Known issues
 
 - **If the game is silent**, check the Windows volume mixer for `gile.exe`,
@@ -203,8 +214,9 @@ launches should be smoother. If you see frame drops, keep the latest
   Audio output through DSP LLE + Cubeb is working.
 - **First launch extracts the disc.** This takes about a minute on an SSD for
   an RVZ, plus the decompression step.
-- The game is playable through the tutorial. A full story playthrough has not
-  been completed; report any scene that crashes or renders incorrectly.
+- The tutorial, Movie Lot and the other levels (reached through the cheat
+  codes) play. A full story playthrough has not been completed; report any
+  scene that crashes or renders incorrectly.
 - 100 possible self-modifying-code ranges are under review. None blocked boot
   or the first level.
 

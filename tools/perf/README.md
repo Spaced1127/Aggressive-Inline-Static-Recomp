@@ -32,7 +32,32 @@ To compare against the JIT core, add `-Core jit`. That writes `cpu_core=jit`
 to the probe's `config.ini` and runs with `MODERNGEKKO_STATICRECOMP=0`.
 
 To compare disc timing, add `FastDiscSpeed = True` under `[Core]` in the
-probe's `Config/Dolphin.ini` (the measured fix; see the note).
+probe's `Config/Dolphin.ini`.
+
+To test the shipped fix, copy `assets/GameSettings/GILE51.ini` to
+`<UserDir>\GameSettings\GILE51.ini`. Set `STATICRECOMP_DISPATCH_SAMPLES=1`
+before running to get the 16 hottest guest dispatch sites in the stderr log at
+shutdown.
+
+## summarize_presentmon.py
+
+Prints frames, avg, p50/p95/p99, max, and counts of >50 ms / >100 ms frames
+for one or more captures. `--timeline` lists each >50 ms frame with its offset.
+
+```powershell
+python tools\perf\summarize_presentmon.py work\perf_stutter\captures\a.csv b.csv --timeline
+```
+
+## find_spin_loops.py / dol_context.py
+
+Static helpers for choosing `StaticRecompIdlePC`. `find_spin_loops.py` lists
+short backward-branch loops with loads and no calls or stores.
+`dol_context.py` prints the words and branch targets around an address.
+
+```powershell
+python tools\perf\find_spin_loops.py work\disc\main.dol --max-len 5
+python tools\perf\dol_context.py work\disc\main.dol 0x80143348
+```
 
 ## sample_threads.ps1
 
