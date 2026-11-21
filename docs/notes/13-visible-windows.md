@@ -2,10 +2,10 @@
 
 Persisted 2026-11-16 by direct user order.
 
-**Current precedence (2026-11-16): the hub has paused all GUI/test launches.**
-No launcher, game executable, emulator, window or audio until the hub lifts
-the pause. Host-side work only. When the pause is lifted, the rules below
-apply.
+**Current status (2026-11-21): the hub lifted the GUI pause for release
+verification; visible test windows are allowed.** Launch normally. If the hub
+pauses GUI/test launches again, stop all launches and do host-side work only
+until it lifts the pause.
 
 - Do **not** use `H:\Orchestration\tools\run-hidden.ps1` or any hidden
   desktop. Launch apps normally so their windows are visible on the user's

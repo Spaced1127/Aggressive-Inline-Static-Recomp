@@ -123,6 +123,15 @@ The recompiled game boots to playable gameplay on Windows:
   <https://github.com/Spaced1127/Aggressive-Inline-Static-Recomp/releases/tag/v0.1.2>.
   Notes in `work/release_notes_v0.1.2.md`. The published asset was downloaded
   and re-hashed; it matches. v0.1.1 was never published and is superseded.
+- **Controller matrix check (v0.1.2)**: offline layout test **130/130** on the
+  current build (Xbox 360/One/S/Series, Elite 1/2 incl. 0B22, DualSense,
+  DualSense Edge USB/BT, Switch Pro USB/BT, 8BitDo Pro 2 USB/BT, Ultimate,
+  64, D-pad reversal, migration/profile bindings). The live pad is an Xbox
+  Series/One controller over USB (`045E:0B12`, XInput `045E:02FF`): detected
+  as `SDL/0/Xbox One Controller`, `layout=xbox`, `source=guid`, profile names
+  the exact device. Physical button presses were **not** verified - a 113 s
+  XInput monitor captured no presses after the interactive prompt was
+  interrupted. See [`notes/15-controller-matrix-v0.1.2.md`](notes/15-controller-matrix-v0.1.2.md).
   16:9 widescreen and the Hor+ widescreen hack are fixed in v0.0.2. The v0.0.1
   runner was a stale binary that ignored `aspect`/`widescreen_hack`; the new
   runner is built from the current ModernGekko source. See
@@ -251,17 +260,17 @@ menu if those values need checking.
 
 ## Next actions
 
-1. **TEST LAUNCHES PAUSED BY THE HUB (2026-11-16)**: do not launch the game,
-   launcher, emulator or any GUI until the hub lifts the pause; no audio.
-   Blocked test actions (resume when lifted, visible windows only):
-   post-release save/load smoke on a real window, controller hardware
-   confirmation (Xbox / DualSense Edge / Elite / 8BitDo), and the coverage runs
-   below. Host-side work is allowed.
+1. **Visible test windows allowed for release verification (hub lifted the
+   GUI pause)**: launch normally with visible windows; the hidden desktop is
+   retired. If the hub pauses GUI/test launches again, stop all launches and
+   do host-side work only. Remaining test actions: physical button
+   confirmation on the connected Xbox pad, Edge / Elite / 8BitDo hardware,
+   Bluetooth vs USB, connect-after-launch, and the coverage runs below.
 2. **v0.1.2 published**: commit `a749ad6`, tag `v0.1.2`, zip SHA-256
    `6CAE9F3DA3DA7FA6954F74B6B176BC4D9488D3466D93B34089A24321A5B41C23`.
    Post-release: ask players for the `controller:` and
    `controller configuration:` lines, and for Edge / Elite / 8BitDo
-   confirmation. A physical pad is still needed on this machine.
+   confirmation. Only an Xbox Series/One USB pad is present on this machine.
 3. **Audio**: working. No action; if a report says silent, check the Windows
    per-app mixer, the launcher Audio page and the in-game Sound menu first.
 4. **Performance / level-start stutter**: Clang `-O3` + x86-64-v3 + ThinLTO
