@@ -1,6 +1,6 @@
 # Project state
 
-Updated: 2026-11-16
+Updated: 2026-11-21
 
 ## Working mode
 
@@ -15,6 +15,10 @@ is lifted, test apps launch normally with visible windows. Do not use
 `H:\Orchestration\tools\run-hidden.ps1`, and do not hide, minimize, move or
 kill the windows of test apps. This supersedes every earlier hidden-desktop
 instruction. See [`notes/13-visible-windows.md`](notes/13-visible-windows.md).
+
+On 2026-11-21 the user directed level-start stutter testing. The windowed runs
+in [`notes/14-movielot-stutter.md`](notes/14-movielot-stutter.md) were made
+under that direction. The hub pause text above remains for other work.
 
 ## Latest verified result
 
@@ -140,6 +144,19 @@ The recompiled game boots to playable gameplay on Windows:
   is not yet attributed to a single cause. The launcher now creates the cache,
   enables cache affinity and pins to physical cores on 16-thread CPUs. See
   [`notes/03-performance.md`](notes/03-performance.md).
+- **Level-start stutter reproduced and attributed (2026-11-21)**: Movie Lot,
+  started from `work/memtest/levelselect.state` + one right press + A, shows a
+  ~1.6 s freeze, a run of 100.1 ms frames for several seconds, further
+  1.3-1.6 s freezes, and is still at 56.8 FPS / speed 0.948 after 30 s.
+  PresentMon shows the GPU idle (~0.7 ms) and the emulated CPU thread running
+  at ~100 % through the hitches. The Tutorial level has the same pattern but
+  recovers to 60 FPS. Running the Tutorial through the Dolphin JIT core
+  produces the same stalls, so it is not static-recomp dispatch overhead; warm
+  shader caches and GPU texture decoding do not change it. Setting
+  `[Core] FastDiscSpeed = True` shrinks Movie Lot's worst freeze from 1602 ms
+  to 467 ms, removes the sustained 100 ms staircase, and restores
+  59.95 FPS / speed 0.9997. Full data and reproduction in
+  [`notes/14-movielot-stutter.md`](notes/14-movielot-stutter.md).
 
 No crash, hang, or unimplemented-stub abort was observed through these scenes.
 With the Clang `-O3` module the window title reports **59.9 FPS** in gameplay at
@@ -247,8 +264,14 @@ menu if those values need checking.
    confirmation. A physical pad is still needed on this machine.
 3. **Audio**: working. No action; if a report says silent, check the Windows
    per-app mixer, the launcher Audio page and the in-game Sound menu first.
-4. **Performance**: done for the first pass - Clang `-O3` + x86-64-v3 + ThinLTO
-   holds 59.9 FPS at 3x native internal in gameplay. PGO is optional from here.
+4. **Performance / level-start stutter**: Clang `-O3` + x86-64-v3 + ThinLTO
+   holds 59.9 FPS at 3x native internal in steady gameplay, but Movie Lot's
+   load has 1.3-1.6 s freezes and a 100 ms staircase at the default emulated
+   disc speed. `FastDiscSpeed = True` removes most of it (worst frame 1602 ms ->
+   467 ms, sustained 56.8 -> 59.95 FPS). Next: land the setting in
+   `tools/gile_launcher.cs` and `recomplauncher.json`, then validate a level
+   transition and audio. See
+   [`notes/14-movielot-stutter.md`](notes/14-movielot-stutter.md).
 5. **Coverage**: memory-card save/load is done. Remaining: complete the
    tutorial, level transitions, pause, and at least one full level (blocked by
    the launch pause).
@@ -260,10 +283,12 @@ menu if those values need checking.
    The release ships the full `defaults/GCPadNew*.ini` preset set, branded
    `gile.exe`/`gile-launcher.exe` version info and 16:9 window sizing. See
    [`notes/06-controller-runtime-and-resolution.md`](notes/06-controller-runtime-and-resolution.md).
-8. **Frame-time validation**: capture a clean active-gameplay window with the
-   fixed launcher and warm shader cache. If 100 ms+ CPU stalls remain, build a
-   PGO module from a gameplay profile. See
-   [`notes/03-performance.md`](notes/03-performance.md).
+8. **Frame-time validation**: after enabling `FastDiscSpeed`, capture a 60 s
+   Movie Lot gameplay window (warm shader cache) and a level transition. The
+   remaining 100-467 ms load hitches are unattributed; test null audio, GPU
+   texture decoding, and warm/cold pipeline cache before considering PGO. See
+   [`notes/03-performance.md`](notes/03-performance.md) and
+   [`notes/14-movielot-stutter.md`](notes/14-movielot-stutter.md).
 9. **zgui host function**: implement or stub `inlineOverlayGetNumContinues`
    (`Continues`), which logs "Host function not Found" in the UI overlay.
 
@@ -290,11 +315,13 @@ menu if those values need checking.
   [`notes/11-memory-card.md`](notes/11-memory-card.md). Old savestates made
   under the GCI-folder setup restore that device type and should not be
   used for memcard testing.
-- **Performance**: the Clang module is at the 60 FPS cap in the tested scene at
-  3x internal resolution, but one captured window had CPU-bound 1.5 s stalls.
-  The v0.0.1 release asset predates the `Cache\Shaders`, affinity and generic
-  runner fixes; v0.0.2 contains the fixed launcher and runner. A clean
-  active-gameplay capture is still the validation gap.
+- **Performance**: the Clang module is at the 60 FPS cap in steady gameplay at
+  3x internal, but Movie Lot's load is CPU-bound in the guest and stutters
+  badly at the default emulated disc speed. `FastDiscSpeed` is the measured
+  mitigation but is not yet in the launcher/release config. The remaining
+  100-467 ms load hitches are unattributed. The v0.0.1 release asset predates
+  the `Cache\Shaders`, affinity and generic runner fixes; v0.0.2+ contain them.
+  See [`notes/14-movielot-stutter.md`](notes/14-movielot-stutter.md).
 - **Missing host function**: `inlineOverlayGetNumContinues` is called by the
   zgui overlay and is not implemented. It is separate from the frame-time issue
   but should be stubbed.
@@ -329,4 +356,9 @@ powershell -ExecutionPolicy Bypass -File tools\capture_session.ps1 -Seconds 600 
 
 # Dev-build FPS probe with save-state load and scripted movement
 powershell -ExecutionPolicy Bypass -File tools\perf_probe.ps1 -Seconds 30
+
+# Movie Lot level-start frame trace (normal and fast disc)
+powershell -ExecutionPolicy Bypass -File tools\perf\capture_level_start.ps1 `
+  -UserDir work\perf_stutter\movielot_user -StartLevel -RightPresses 1 `
+  -Tag movielot-cold -CaptureSeconds 30
 ```
